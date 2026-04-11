@@ -257,24 +257,40 @@ let messages = JSON.parse(localStorage.getItem('cashchat_msgs') || '[]');
 // CATEGORIES
 // ═══════════════════════════════════════════════
 const EXP_CATEGORIES = {
-  "🍔 Food":["makan","lunch","dinner","breakfast","sarapan","nasi","ayam","sate","bakso","mie","burger","pizza","sushi","ramen","warteg","padang","resto","restaurant","food","snack","jajan","indomie","geprek","pecel","gado","soto","rawon","rendang","martabak","gorengan","seblak","batagor","siomay"],
-  "☕ Coffee & Drinks":["kopi","coffee","starbucks","boba","teh","tea","minum","drink","jus","juice","es","susu","milk","chatime","kenangan","janji jiwa","fore","tomoro","mixue"],
-  "🚗 Transport":["grab","gojek","ojek","taxi","taksi","uber","bensin","parkir","tol","transport","bus","kereta","mrt","lrt","krl","transjakarta","angkot","ojol","maxim","indriver"],
-  "🛒 Shopping":["beli","belanja","shopping","baju","celana","sepatu","tas","tokped","tokopedia","shopee","lazada","blibli","mall","tiktok shop"],
-  "🏠 Bills & Utilities":["listrik","air","wifi","internet","pulsa","paket data","iuran","sewa","rent","kost","kos","bill","tagihan","indihome","telkomsel","xl","tri","smartfren"],
-  "🎮 Entertainment":["game","netflix","spotify","youtube","nonton","bioskop","cinema","tiket","konser","hiburan","disney","hbo","steam","topup"],
-  "💊 Health":["obat","dokter","apotek","farmasi","rumah sakit","rs","klinik","vitamin","health","medical","gym","fitness"],
-  "📦 Other":[]
+  "🍔 Makan":["makan","lunch","dinner","breakfast","sarapan","nasi","ayam","sate","bakso","mie","burger","pizza","sushi","ramen","warteg","padang","resto","restaurant","food","snack","jajan","indomie","geprek","pecel","gado","soto","rawon","rendang","martabak","gorengan","seblak","batagor","siomay","nasi goreng","nasi padang","nasi uduk","ketoprak","bubur","lontong","pempek","dimsum","steak","salad","ricebowl","rice bowl","lauk","sayur","sambel","sambal","catering"],
+  "☕ Ngopi & Minum":["kopi","coffee","starbucks","boba","teh","tea","minum","drink","jus","juice","es","susu","milk","chatime","kenangan","janji jiwa","fore","tomoro","mixue","koi","gulu","xiboba","yakult"],
+  "🍞 Roti & Snack":["roti","bread","bakery","kue","cake","donat","donut","croissant","pastry","cookies","snack","keripik","coklat","chocolate","permen","ice cream","es krim"],
+  "🛒 Groceries":["supermarket","super indo","hypermart","giant","alfamart","indomaret","lotte mart","lotte","family mart","familymart","lawson","circle k","groceries","belanja bulanan","sayuran","buah","daging","bumbu","beras","minyak","telur","ranch market","farmers market","all fresh","food hall","transmart"],
+  "🚗 Transport":["grab","gojek","ojek","taxi","taksi","uber","bensin","parkir","tol","transport","bus","kereta","mrt","lrt","krl","transjakarta","angkot","ojol","maxim","indriver","solar","pertalite","pertamax","shell","bbm","e-toll","etoll","flazz"],
+  "🛍️ Belanja":["beli","belanja","shopping","baju","celana","sepatu","tas","tokped","tokopedia","shopee","lazada","blibli","mall","tiktok shop","fashion","kaos","jaket","hoodie","aksesoris","jam tangan"],
+  "🏠 Rumah & Tagihan":["listrik","air","pam","wifi","internet","pulsa","paket data","iuran","sewa","rent","kost","kos","kontrakan","bill","tagihan","indihome","telkomsel","xl","tri","smartfren","pln","bpjs","asuransi","cicilan","kredit","angsuran","pajak","ipkl","gas","elpiji","laundry","cuci","service ac","sedot wc","sampah","kebersihan"],
+  "🎮 Hiburan":["game","netflix","spotify","youtube","nonton","bioskop","cinema","tiket","konser","hiburan","disney","hbo","steam","topup","playstation","ps5","ps4","nintendo","xbox","cgv","xxi","prime video","viu"],
+  "⚽ Olahraga":["futsal","gym","fitness","badminton","bulutangkis","renang","swimming","tennis","basket","sepak bola","football","yoga","pilates","golf","boxing","muay thai","member gym","membership"],
+  "💊 Kesehatan":["obat","dokter","apotek","farmasi","rumah sakit","rs","klinik","vitamin","health","medical","checkup","lab","cek darah","rontgen","fisioterapi","psikolog","gigi","dentist","mata","optik","kacamata"],
+  "📚 Pendidikan":["buku","book","kursus","course","les","tutor","sekolah","kuliah","spp","ukt","udemy","coursera","seminar","workshop","training","sertifikasi"],
+  "🧴 Self Care":["skincare","makeup","salon","barbershop","barber","potong rambut","cukur","spa","pijat","massage","facial","manicure","parfum","sabun","shampoo","perawatan"],
+  "🐱 Pet":["kucing","anjing","pet","pet shop","petshop","makanan kucing","makanan anjing","grooming","vaksin hewan","vet","veteriner","dokter hewan","pasir kucing","litter"],
+  "🪡 Jahit & Service":["jahit","tailor","permak","service","servis","reparasi","repair","ganti oli","tune up","spooring","balancing","tambal ban","cuci mobil","cuci motor","poles"],
+  "🎁 Gift & Donasi":["kado","gift","hadiah","sumbangan","donasi","infaq","infak","sedekah","zakat","amal","charity","THR","angpao"],
+  "📦 Lainnya":[]
 };
 
 const INC_CATEGORIES = {
-  "💰 Gaji":["gaji","salary","payroll","gajian"],
-  "💵 Komisi":["komisi","commission","bonus","insentif","incentive"],
-  "🎁 Transfer":["transfer","kirim","terima","tf"],
-  "📈 Investasi":["dividen","dividend","bunga","interest","investasi","saham","crypto","return"],
-  "💳 Refund":["refund","cashback","rebate"],
+  "💰 Gaji":["gaji","salary","payroll","gajian","upah"],
+  "💵 Bonus & Komisi":["komisi","commission","bonus","insentif","incentive","thr","lembur","overtime"],
+  "💼 Freelance":["freelance","project","proyek","jasa","fee","honor","honorarium","client","klien"],
+  "🏪 Jualan":["jualan","jual","profit","laba","untung","omset","penjualan","dagang","usaha"],
+  "🎁 Transfer Masuk":["transfer","kirim","terima","tf","kiriman"],
+  "📈 Investasi":["dividen","dividend","bunga","interest","investasi","saham","crypto","return","reksadana","deposito","yield"],
+  "💳 Cashback & Refund":["refund","cashback","rebate","voucher","reward","poin","point"],
   "💚 Income Lain":[]
 };
+
+// Words that ALWAYS mean income, even without + prefix
+const INCOME_WORDS = ["gaji","gajian","salary","payroll","upah","komisi","commission","bonus","thr","lembur","overtime","freelance","honor","honorarium","dividen","dividend","bunga deposito","cashback","refund","income","pemasukan","insentif","terima transfer","transfer masuk","profit","laba","untung"];
+
+// Words that ALWAYS mean expense (to prevent false positives)
+const EXPENSE_WORDS = ["beli","bayar","bayarin","traktir","ongkir","ongkos","biaya","harga","buat","untuk"];
 
 function categorize(text, type) {
   const lower = text.toLowerCase();
@@ -282,7 +298,7 @@ function categorize(text, type) {
   for (const [cat, kws] of Object.entries(cats)) {
     if (kws.some(k => lower.includes(k))) return cat;
   }
-  return type === 'income' ? "💚 Income Lain" : "📦 Other";
+  return type === 'income' ? "💚 Income Lain" : "📦 Lainnya";
 }
 
 function parseAmount(text) {
@@ -304,11 +320,27 @@ function parseAmount(text) {
 }
 
 function parseMessage(text) {
-  // Detect income: starts with + or contains income keywords
-  const incomeKeywords = ["gaji","salary","komisi","commission","bonus","transfer masuk","terima","dividen","dividend","bunga","cashback","refund","income","pemasukan","insentif"];
-  const isIncome = text.startsWith('+') || incomeKeywords.some(k => text.toLowerCase().includes(k));
+  const lower = text.toLowerCase();
 
-  const cleanText = text.startsWith('+') ? text.slice(1).trim() : text;
+  // 1. Explicit: starts with + means income, - means expense
+  const hasPlus = text.startsWith('+');
+  const hasMinus = text.startsWith('-');
+
+  // 2. Check for expense words first (higher priority to avoid "beli cashback" → income)
+  const hasExpenseWord = EXPENSE_WORDS.some(k => lower.includes(k));
+
+  // 3. Check for income keywords
+  const hasIncomeWord = INCOME_WORDS.some(k => lower.includes(k));
+
+  // Decide type
+  let isIncome;
+  if (hasPlus) isIncome = true;
+  else if (hasMinus) isIncome = false;
+  else if (hasExpenseWord && !hasIncomeWord) isIncome = false;
+  else if (hasIncomeWord && !hasExpenseWord) isIncome = true;
+  else isIncome = false; // default to expense
+
+  const cleanText = (hasPlus || hasMinus) ? text.slice(1).trim() : text;
   const amount = parseAmount(cleanText);
   if (!amount) return null;
 
