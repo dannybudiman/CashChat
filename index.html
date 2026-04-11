@@ -299,6 +299,9 @@ const ALL_KNOWN_WORDS=(function(){
   return[...words];
 })();
 
+// Words that should never be auto-corrected (time, common Indonesian words, place indicators)
+const CORRECTION_WHITELIST=new Set(['malam','pagi','siang','sore','tengah','hari','ini','tadi','kemarin','lusa','mall','mal','plaza','square','town','city','center','centre','exchange','park','point','junction','avenue','resto','cafe','warung','toko','pasar','ruko']);
+
 function correctTypos(text){
   const words=text.split(/\s+/);
   const corrections=[];
@@ -306,6 +309,7 @@ function correctTypos(text){
     const lower=word.toLowerCase();
     // Skip numbers, short words, and words that already match
     if(word.match(/\d/)||lower.length<3)return word;
+    if(CORRECTION_WHITELIST.has(lower))return word;
     if(ALL_KNOWN_WORDS.includes(lower))return word;
     // Find closest match
     let bestMatch=null,bestDist=Infinity;
@@ -347,14 +351,24 @@ function parseMessage(text){
   let store=detectStore(clean);
   let descText=clean;
 
-  // Pattern: "makan mlm di/du/at nama tempat 35rb"
-  const placeMatch=clean.match(/\b(?:di|du|d\/|at|ke)\s+(.+?)(?:\s+\d|\s*$)/i);
-  if(placeMatch && !store){
+  // Pattern 1: "makan malam di/du/at nama tempat 35rb"
+  const placeMatch=clean.match(/\b(?:di|du|d\/|at|ke)\s+(.+?)(?=\s+[\d]|\s*$)/i);
+  if(placeMatch){
     const placeName=placeMatch[1].replace(/\d+.*$/,'').replace(/\s*(rb|ribu|jt|juta|k)\b.*$/i,'').trim();
     if(placeName.length>=2){
-      store=placeName;
-      // Remove the "di [place]" part from description
-      descText=clean.replace(/\b(?:di|du|d\/|at|ke)\s+.+?(?=\s+\d|\s*$)/i,'').trim();
+      if(!store) store=placeName;
+      descText=clean.replace(/\b(?:di|du|d\/|at|ke)\s+.+?(?=\s+[\d]|\s*$)/i,'').trim();
+    }
+  }
+  // Pattern 2: "makan malam Mall/Plaza/Square X 35rb" — place indicator without preposition
+  if(!store){
+    const mallMatch=clean.match(/\b((?:mall|mal|plaza|square|center|centre|pasar|town|park|junction|exchange|point|avenue)\s+[\w\s]+?)(?=\s+[\d]|\s*$)/i);
+    if(mallMatch){
+      const placeName=mallMatch[1].replace(/\s*(rb|ribu|jt|juta|k)\b.*$/i,'').trim();
+      if(placeName.length>=3){
+        store=placeName;
+        descText=descText.replace(mallMatch[0],'').trim();
+      }
     }
   }
 
