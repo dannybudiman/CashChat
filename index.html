@@ -328,7 +328,7 @@ const ALL_KNOWN_WORDS=(function(){
 })();
 
 // Words immune to Levenshtein correction (time-of-day, place indicators, common words)
-const CORRECTION_WHITELIST=new Set(['malam','pagi','siang','sore','tengah','mall','mal','plaza','square','town','city','center','centre','exchange','park','point','junction','avenue','resto','cafe','warung','toko','pasar','ruko','market','trade','grand','baru','lama','jaya','indah','makmur','damai','sentosa','mulia','abadi']);
+const CORRECTION_WHITELIST=new Set(['malam','pagi','siang','sore','tengah','mall','mal','plaza','square','town','city','center','centre','exchange','park','point','junction','avenue','resto','cafe','warung','toko','pasar','ruko','market','trade','grand','baru','lama','jaya','indah','makmur','damai','sentosa','mulia','abadi','sektor','blok','komplek','perumahan','gedung']);
 
 function correctTypos(text){
   const words=text.split(/\s+/);
@@ -382,14 +382,24 @@ function parseMessage(text){
   let store=detectStore(clean);
   let descText=clean;
 
-  // Pattern: "makan mlm di/du/at nama tempat 35rb"
-  const placeMatch=clean.match(/\b(?:di|du|d\/|at|ke)\s+(.+?)(?:\s+\d|\s*$)/i);
-  if(placeMatch && !store){
+  // Pattern 1: "makan malam di/du/at nama tempat 35rb" — preposisi
+  const placeMatch=clean.match(/\b(?:di|du|d\/|at|ke)\s+(.+?)(?=\s+[\d]|\s*$)/i);
+  if(placeMatch){
     const placeName=placeMatch[1].replace(/\d+.*$/,'').replace(/\s*(rb|ribu|jt|juta|k)\b.*$/i,'').trim();
     if(placeName.length>=2){
-      store=placeName;
-      // Remove the "di [place]" part from description
-      descText=clean.replace(/\b(?:di|du|d\/|at|ke)\s+.+?(?=\s+\d|\s*$)/i,'').trim();
+      if(!store) store=placeName;
+      descText=clean.replace(/\b(?:di|du|d\/|at|ke)\s+.+?(?=\s+[\d]|\s*$)/i,'').trim();
+    }
+  }
+  // Pattern 2: place indicator keywords tanpa preposisi — "makan malam Mall X", "sarapan Sektor 9"
+  if(!store){
+    const mallMatch=clean.match(/\b((?:mall|mal|plaza|square|center|centre|pasar|town|park|junction|exchange|point|avenue|sektor|blok|kavling|komplek|perumahan|ruko|rukan|gedung|lantai|lt\.?)\s+[\w\s]+?)(?=\s+[\d]|\s*$)/i);
+    if(mallMatch){
+      const placeName=mallMatch[1].replace(/\s*(rb|ribu|jt|juta|k)\b.*$/i,'').trim();
+      if(placeName.length>=3){
+        store=placeName;
+        descText=descText.replace(mallMatch[0],'').trim();
+      }
     }
   }
 
