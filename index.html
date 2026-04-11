@@ -183,10 +183,9 @@
 // CONFIG — hardcoded defaults, editable via settings
 // ═══════════════════════════════════════════════
 const DEFAULT_API='https://script.google.com/macros/s/AKfycbzWUKnI6M9Mdbhx58Z0OSv0t667Z66LITf6egx8ln7pgtlIg3xmFTlTxHUXc35jt9AB1A/exec';
-const DEFAULT_GEMINI='AIzaSyB0rvsxySuPMXPBukDaH2_QQkAoRVGGFDs';
 
 let API_URL=localStorage.getItem('cashchat_api')||DEFAULT_API;
-let GEMINI_KEY=localStorage.getItem('cashchat_gemini')||DEFAULT_GEMINI;
+let GEMINI_KEY=localStorage.getItem('cashchat_gemini')||'';
 let entries=[];
 let messages=JSON.parse(localStorage.getItem('cashchat_msgs')||'[]');
 let recurring=JSON.parse(localStorage.getItem('cashchat_rec')||'[]');
@@ -277,24 +276,77 @@ const INCOME_WORDS=["gaji","gajian","salary","payroll","upah","komisi","commissi
 const EXPENSE_WORDS=["beli","bayar","bayarin","traktir","ongkir","ongkos","biaya","harga","buat","untuk"];
 
 function categorize(text,type){const lower=text.toLowerCase();const cats=type==='income'?INC_CATEGORIES:EXP_CATEGORIES;for(const[cat,kws]of Object.entries(cats)){if(kws.some(k=>lower.includes(k)))return cat;}return type==='income'?"💚 Income Lain":"📦 Lainnya";}
+
+// ═══════════════════════════════════════════════
+// TYPO CORRECTION (Levenshtein fuzzy match)
+// ═══════════════════════════════════════════════
+function levenshtein(a,b){
+  const m=a.length,n=b.length;if(!m)return n;if(!n)return m;
+  const d=Array.from({length:m+1},(_,i)=>i);
+  for(let j=1;j<=n;j++){let prev=d[0];d[0]=j;
+    for(let i=1;i<=m;i++){const t=d[i];d[i]=a[i-1]===b[j-1]?prev:1+Math.min(prev,d[i],d[i-1]);prev=t;}}
+  return d[m];
+}
+
+// Build word dictionary from all categories + stores + income/expense words
+const ALL_KNOWN_WORDS=(function(){
+  const words=new Set();
+  [EXP_CATEGORIES,INC_CATEGORIES].forEach(cats=>{Object.values(cats).forEach(kws=>{kws.forEach(k=>{k.split(' ').forEach(w=>{if(w.length>=3)words.add(w.toLowerCase())});if(k.includes(' '))words.add(k.toLowerCase());});});});
+  Object.keys(KNOWN_STORES).forEach(s=>words.add(s.toLowerCase()));
+  Object.values(KNOWN_STORES).forEach(kws=>kws.forEach(k=>{if(k.length>=3)words.add(k.toLowerCase())}));
+  INCOME_WORDS.forEach(w=>words.add(w.toLowerCase()));
+  EXPENSE_WORDS.forEach(w=>words.add(w.toLowerCase()));
+  return[...words];
+})();
+
+function correctTypos(text){
+  const words=text.split(/\s+/);
+  const corrections=[];
+  const corrected=words.map(word=>{
+    const lower=word.toLowerCase();
+    // Skip numbers, short words, and words that already match
+    if(word.match(/\d/)||lower.length<3)return word;
+    if(ALL_KNOWN_WORDS.includes(lower))return word;
+    // Find closest match
+    let bestMatch=null,bestDist=Infinity;
+    for(const known of ALL_KNOWN_WORDS){
+      if(Math.abs(known.length-lower.length)>2)continue; // skip if length differs too much
+      const dist=levenshtein(lower,known);
+      const threshold=lower.length<=4?1:2; // stricter for short words
+      if(dist<=threshold&&dist<bestDist){bestDist=dist;bestMatch=known;}
+    }
+    if(bestMatch&&bestMatch!==lower){
+      // Preserve original casing style
+      const fixed=word[0]===word[0].toUpperCase()?bestMatch[0].toUpperCase()+bestMatch.slice(1):bestMatch;
+      corrections.push({from:word,to:fixed});
+      return fixed;
+    }
+    return word;
+  });
+  return{text:corrected.join(' '),corrections};
+}
 function parseAmount(text){const lower=text.toLowerCase().replace(/\./g,'').replace(/,/g,'');const pats=[{r:/(\d+(?:[.,]\d+)?)\s*jt/i,m:1e6},{r:/(\d+(?:[.,]\d+)?)\s*juta/i,m:1e6},{r:/(\d+(?:[.,]\d+)?)\s*rb/i,m:1e3},{r:/(\d+(?:[.,]\d+)?)\s*ribu/i,m:1e3},{r:/(\d+(?:[.,]\d+)?)\s*k\b/i,m:1e3},{r:/rp\s*(\d+)/i,m:1},{r:/(\d{4,})/,m:1}];for(const{r,m}of pats){const match=lower.match(r);if(match)return Math.round(parseFloat(match[1].replace(',','.'))*m);}return null;}
 
 function parseMessage(text){
-  const lower=text.toLowerCase();
+  // Auto-correct typos first
+  const {text:correctedText, corrections} = correctTypos(text);
+  const workText = corrections.length > 0 ? correctedText : text;
+
+  const lower=workText.toLowerCase();
   const hasPlus=text.startsWith('+'),hasMinus=text.startsWith('-');
   const hasExpW=EXPENSE_WORDS.some(k=>lower.includes(k));
   const hasIncW=INCOME_WORDS.some(k=>lower.includes(k));
   let isIncome;
   if(hasPlus)isIncome=true;else if(hasMinus)isIncome=false;
   else if(hasExpW&&!hasIncW)isIncome=false;else if(hasIncW&&!hasExpW)isIncome=true;else isIncome=false;
-  const clean=(hasPlus||hasMinus)?text.slice(1).trim():text;
+  const clean=(hasPlus||hasMinus)?workText.slice(1).trim():workText;
   const amount=parseAmount(clean);if(!amount)return null;
   const type=isIncome?'income':'expense';
   const category=categorize(clean,type);
   const store=detectStore(clean);
   let desc=clean.replace(/rp\s*\d+/gi,'').replace(/\d+(?:[.,]\d+)?\s*(jt|juta|rb|ribu|k)\b/gi,'').replace(/\d{4,}/g,'').replace(/\s+/g,' ').trim();
   if(!desc)desc=category.split(' ').slice(1).join(' ');
-  return{id:Date.now().toString(36)+Math.random().toString(36).slice(2,6),amount,category,description:desc,type,store,date:new Date().toISOString()};
+  return{id:Date.now().toString(36)+Math.random().toString(36).slice(2,6),amount,category,description:desc,type,store,date:new Date().toISOString(),corrections:corrections.length>0?corrections:null};
 }
 function fmtRp(n){return'Rp'+Math.abs(n).toLocaleString('id-ID')}
 function fmtDate(iso){return new Date(iso).toLocaleDateString('id-ID',{day:'numeric',month:'short',year:'numeric'})}
@@ -341,8 +393,9 @@ function renderChat(){
     else if(m.ocrError){html+=`<div class="bubble-row bot"><div class="bubble bot-bubble"><div>❌ ${esc(m.ocrError)}</div></div></div>`;}
     else if(m.isOcr&&m.parsed){const p=m.parsed;let ih='';if(p.ocrItems){p.ocrItems.forEach(i=>{ih+=`<div style="display:flex;justify-content:space-between;font-size:12px;padding:2px 0"><span>${esc(i.item)}</span><span style="color:var(--red);font-weight:600">${fmtRp(i.amount||0)}</span></div>`;});}
       html+=`<div class="bubble-row bot"><div class="bubble bot-bubble"><div class="ok">🧾 Struk di-scan!</div>${p.store?`<div class="store-tag">🏪 ${esc(p.store)}</div>`:''}<div style="margin:6px 0;padding:8px;background:var(--surface2);border-radius:8px">${ih}</div><div class="detail-grid"><span class="lbl">Total</span><span class="amt-out">−${fmtRp(p.amount)}</span><span class="lbl">Items</span><span>${p.ocrItems?p.ocrItems.length:0} item</span></div></div></div>`;}
-    else if(m.parsed){const isIn=m.parsed.type==='income';const st=m.parsed.store;
-      html+=`<div class="bubble-row bot"><div class="bubble bot-bubble"><div class="ok">${isIn?'💰 Pemasukan dicatat!':'✅ Dicatat!'}</div><div class="detail-grid"><span class="lbl">Item</span><span>${esc(m.parsed.description)}</span><span class="lbl">Jumlah</span><span class="${isIn?'amt-in':'amt-out'}">${isIn?'+':'−'}${fmtRp(m.parsed.amount)}</span><span class="lbl">Kategori</span><span>${esc(m.parsed.category)}</span>${st?`<span class="lbl">Tempat</span><span>🏪 ${esc(st)}</span>`:''}<span class="lbl">Waktu</span><span>${fmtTime(m.parsed.date)}</span></div></div></div>`;}
+    else if(m.parsed){const isIn=m.parsed.type==='income';const st=m.parsed.store;const corr=m.parsed.corrections;
+      let corrHtml='';if(corr&&corr.length>0){corrHtml=`<div style="font-size:11px;color:var(--yellow);margin-top:4px;opacity:.8">✏️ Koreksi: ${corr.map(c=>`<s style="opacity:.5">${esc(c.from)}</s> → ${esc(c.to)}`).join(', ')}</div>`;}
+      html+=`<div class="bubble-row bot"><div class="bubble bot-bubble"><div class="ok">${isIn?'💰 Pemasukan dicatat!':'✅ Dicatat!'}</div><div class="detail-grid"><span class="lbl">Item</span><span>${esc(m.parsed.description)}</span><span class="lbl">Jumlah</span><span class="${isIn?'amt-in':'amt-out'}">${isIn?'+':'−'}${fmtRp(m.parsed.amount)}</span><span class="lbl">Kategori</span><span>${esc(m.parsed.category)}</span>${st?`<span class="lbl">Tempat</span><span>🏪 ${esc(st)}</span>`:''}<span class="lbl">Waktu</span><span>${fmtTime(m.parsed.date)}</span></div>${corrHtml}</div></div>`;}
     else{html+=`<div class="bubble-row bot"><div class="bubble bot-bubble"><div>🤔 Ga bisa baca jumlahnya.</div><div class="err-hint">Format: "makan 35rb" atau "gaji 5jt"</div></div></div>`;}
   });
   c.innerHTML=html;c.parentElement.scrollTop=c.parentElement.scrollHeight;
@@ -401,7 +454,11 @@ function esc(s){const d=document.createElement('div');d.textContent=s;return d.i
 // ═══════════════════════════════════════════════
 async function handleReceipt(fileInput){
   const file=fileInput.files[0];if(!file)return;fileInput.value='';
-  if(!GEMINI_KEY){messages.push({type:'user',text:'📷 [Upload struk]',ts:Date.now()},{type:'bot',parsed:null,ts:Date.now()+1,ocrError:'Gemini API key belum di-set. Klik ⚙ Settings.'});localStorage.setItem('cashchat_msgs',JSON.stringify(messages));updateUI();return;}
+  if(!GEMINI_KEY){
+    const key=prompt('Masukkan Gemini API Key untuk scan struk:\n(Gratis dari aistudio.google.com → Get API Key)');
+    if(!key){fileInput.value='';return;}
+    GEMINI_KEY=key;localStorage.setItem('cashchat_gemini',key);
+  }
   const camBtn=document.querySelector('.cam-btn');camBtn.classList.add('processing');camBtn.textContent='⏳';
   const base64=await new Promise((res,rej)=>{const r=new FileReader();r.onload=()=>res(r.result.split(',')[1]);r.onerror=()=>rej(new Error('Read failed'));r.readAsDataURL(file);});
   const thumbUrl=URL.createObjectURL(file);
