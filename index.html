@@ -488,7 +488,7 @@ async function fetchExpenses() {
   if (!API_URL) return;
   setSyncStatus('loading');
   try {
-    const res = await fetch(API_URL + '?action=get');
+    const res = await fetch(API_URL + '?action=get', { redirect: 'follow' });
     const data = await res.json();
     expenses = data.map(e => ({
       ...e,
@@ -510,13 +510,13 @@ async function addExpense(entry) {
   try {
     const params = new URLSearchParams({
       action: 'add',
-      id: entry.id,
-      date: entry.date,
-      description: entry.description,
-      category: entry.category,
-      amount: entry.amount
+      id: String(entry.id),
+      date: String(entry.date),
+      description: String(entry.description),
+      category: String(entry.category),
+      amount: String(entry.amount)
     });
-    const res = await fetch(API_URL + '?' + params.toString());
+    const res = await fetch(API_URL + '?' + params.toString(), { redirect: 'follow' });
     await res.json();
     setSyncStatus('ok');
   } catch (err) {
@@ -531,7 +531,7 @@ async function deleteExpense(id) {
   if (!API_URL) return;
   setSyncStatus('loading');
   try {
-    await fetch(API_URL + '?action=delete&id=' + encodeURIComponent(id));
+    await fetch(API_URL + '?action=delete&id=' + encodeURIComponent(id), { redirect: 'follow' });
     setTimeout(() => fetchExpenses(), 1000);
   } catch (err) {
     console.error('Del error:', err);
