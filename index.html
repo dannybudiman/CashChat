@@ -342,10 +342,29 @@ function parseMessage(text){
   const clean=(hasPlus||hasMinus)?workText.slice(1).trim():workText;
   const amount=parseAmount(clean);if(!amount)return null;
   const type=isIncome?'income':'expense';
-  const category=categorize(clean,type);
-  const store=detectStore(clean);
-  let desc=clean.replace(/rp\s*\d+/gi,'').replace(/\d+(?:[.,]\d+)?\s*(jt|juta|rb|ribu|k)\b/gi,'').replace(/\d{4,}/g,'').replace(/\s+/g,' ').trim();
+
+  // Extract store from prepositions: "di/du/at [place name]"
+  let store=detectStore(clean);
+  let descText=clean;
+
+  // Pattern: "makan mlm di/du/at nama tempat 35rb"
+  const placeMatch=clean.match(/\b(?:di|du|d\/|at|ke)\s+(.+?)(?:\s+\d|\s*$)/i);
+  if(placeMatch && !store){
+    const placeName=placeMatch[1].replace(/\d+.*$/,'').replace(/\s*(rb|ribu|jt|juta|k)\b.*$/i,'').trim();
+    if(placeName.length>=2){
+      store=placeName;
+      // Remove the "di [place]" part from description
+      descText=clean.replace(/\b(?:di|du|d\/|at|ke)\s+.+?(?=\s+\d|\s*$)/i,'').trim();
+    }
+  }
+
+  const category=categorize(descText,type);
+
+  let desc=descText.replace(/rp\s*\d+/gi,'').replace(/\d+(?:[.,]\d+)?\s*(jt|juta|rb|ribu|k)\b/gi,'').replace(/\d{4,}/g,'').replace(/\s+/g,' ').trim();
+  // Clean up common abbreviations
+  desc=desc.replace(/\bmlm\b/gi,'malam').replace(/\bpg\b/gi,'pagi').replace(/\bsng\b/gi,'siang').replace(/\bsor\b/gi,'sore');
   if(!desc)desc=category.split(' ').slice(1).join(' ');
+
   return{id:Date.now().toString(36)+Math.random().toString(36).slice(2,6),amount,category,description:desc,type,store,date:new Date().toISOString(),corrections:corrections.length>0?corrections:null};
 }
 function fmtRp(n){return'Rp'+Math.abs(n).toLocaleString('id-ID')}
@@ -467,14 +486,16 @@ async function handleReceipt(fileInput){
     const resp=await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${GEMINI_KEY}`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({contents:[{parts:[{text:`Kamu adalah OCR struk belanja. Baca struk ini dan extract info.
 
 OUTPUT HANYA JSON, tanpa markdown, tanpa backtick:
-{"store":"nama toko/resto jika ada","items":[{"item":"nama item","amount":harga_angka}]}
+{"store":"nama toko/resto","items":[{"item":"nama item","amount":harga_final}]}
 
-RULES:
+RULES PENTING:
 - "store": nama toko/merchant dari header struk. Kalau ga ada tulis ""
-- "items": array semua individual items
-- "amount" harus angka bulat Rupiah
-- Abaikan subtotal, tax, total, diskon, kembalian
-- Kalau quantity > 1, kalikan harga x qty
+- "items": array semua individual items yang DIBELI
+- "amount" = harga FINAL per item dalam Rupiah (angka bulat)
+- Kalau ada diskon per item, kurangi dari harga item itu
+- Kalau ada diskon global (misal 50%), apply ke setiap item secara proporsional
+- JANGAN masukkan subtotal, total, tax, pajak, service charge, kembalian, pembulatan
+- Kalau quantity > 1, hitung: (harga satuan x qty) - diskon item
 - Kalau ga terbaca, return {"store":"","items":[]}`},{inline_data:{mime_type:file.type||'image/jpeg',data:base64}}]}]})});
     const data=await resp.json();
     if(!resp.ok)throw new Error(data.error?.message||'API error '+resp.status);
