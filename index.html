@@ -139,6 +139,12 @@
   .input-bar input::placeholder{color:var(--text2)}
   .send-btn{width:46px;height:46px;border-radius:50%;border:none;background:var(--accent);color:#fff;font-size:20px;cursor:pointer;display:flex;align-items:center;justify-content:center;flex-shrink:0}
   .send-btn:active{transform:scale(.9)}
+  .cam-btn{width:42px;height:42px;border-radius:50%;border:1px solid var(--border);background:var(--surface2);color:var(--text);font-size:18px;cursor:pointer;display:flex;align-items:center;justify-content:center;flex-shrink:0;transition:all .2s}
+  .cam-btn:hover{border-color:var(--accent);background:var(--surface3)}
+  .cam-btn:active{transform:scale(.9)}
+  .cam-btn.processing{animation:pulse 1s infinite}
+  .ocr-preview{margin:8px 0;border-radius:12px;overflow:hidden;max-width:200px}
+  .ocr-preview img{width:100%;display:block;border-radius:12px;border:1px solid var(--border)}
   .sync-dot{display:inline-block;width:7px;height:7px;border-radius:50%;margin-left:6px;vertical-align:middle}
   .sync-dot.ok{background:var(--green)}.sync-dot.loading{background:var(--yellow);animation:pulse 1s infinite}.sync-dot.err{background:var(--red)}
   .gear-btn{border:none;background:transparent;color:var(--text2);font-size:18px;cursor:pointer;padding:4px;margin-left:8px}
@@ -157,7 +163,8 @@
     <div class="logo">💸</div>
     <div class="title">CashChat</div>
     <div class="desc">Catat pengeluaran &amp; pemasukan lewat chat.<br>Sync antar device via Google Sheets.</div>
-    <input class="s-input" id="setupUrl" placeholder="https://script.google.com/macros/s/.../exec" spellcheck="false">
+    <input class="s-input" id="setupUrl" placeholder="Google Apps Script URL" spellcheck="false">
+    <input class="s-input" id="setupGemini" placeholder="Gemini API Key (opsional, untuk OCR struk)" spellcheck="false">
     <button class="s-btn" onclick="saveSetup()">Connect &amp; Start</button>
     <details class="s-help">
       <summary>Cara setup Google Apps Script</summary>
@@ -198,6 +205,8 @@
   </div>
 
   <div class="input-bar" id="inputBar" style="display:none">
+    <input type="file" id="receiptInput" accept="image/*" capture="environment" style="display:none" onchange="handleReceipt(this)">
+    <button class="cam-btn" onclick="document.getElementById('receiptInput').click()" title="Scan struk">📷</button>
     <input id="msgInput" placeholder='e.g. "makan 35rb" atau "gaji 5jt"' autocomplete="off">
     <button class="send-btn" onclick="handleSend()">↑</button>
   </div>
@@ -205,6 +214,7 @@
 
 <script>
 let API_URL=localStorage.getItem('cashchat_api')||'';
+let GEMINI_KEY=localStorage.getItem('cashchat_gemini')||'';
 let entries=[];
 let messages=JSON.parse(localStorage.getItem('cashchat_msgs')||'[]');
 let recurring=JSON.parse(localStorage.getItem('cashchat_rec')||'[]');
@@ -346,8 +356,8 @@ function removeRecurring(idx){recurring.splice(idx,1);saveRecurring();renderRecu
 // ═══════════════════════════════════════════════
 // SETUP
 // ═══════════════════════════════════════════════
-function saveSetup(){const u=document.getElementById('setupUrl').value.trim();if(!u)return;API_URL=u;localStorage.setItem('cashchat_api',u);document.getElementById('setupScreen').classList.add('hidden');showMain();fetchEntries();}
-function showSetup(){document.getElementById('setupScreen').classList.remove('hidden');document.getElementById('setupUrl').value=API_URL;document.getElementById('mainHeader').style.display='none';document.getElementById('content').style.display='none';document.getElementById('inputBar').style.display='none';}
+function saveSetup(){const u=document.getElementById('setupUrl').value.trim();if(!u)return;API_URL=u;localStorage.setItem('cashchat_api',u);const g=document.getElementById('setupGemini').value.trim();GEMINI_KEY=g;localStorage.setItem('cashchat_gemini',g);document.getElementById('setupScreen').classList.add('hidden');showMain();fetchEntries();}
+function showSetup(){document.getElementById('setupScreen').classList.remove('hidden');document.getElementById('setupUrl').value=API_URL;document.getElementById('setupGemini').value=GEMINI_KEY;document.getElementById('mainHeader').style.display='none';document.getElementById('content').style.display='none';document.getElementById('inputBar').style.display='none';}
 function showMain(){document.getElementById('mainHeader').style.display='';document.getElementById('content').style.display='';document.getElementById('inputBar').style.display='';}
 
 // ═══════════════════════════════════════════════
@@ -372,10 +382,29 @@ function updateUI(){
 
 function renderChat(){
   const c=document.getElementById('chatView');
-  if(messages.length===0){c.innerHTML=`<div class="empty-state"><div class="icon">💬</div><div class="etitle">Halo! Mulai catat keuanganmu</div><div class="hints"><strong>Pengeluaran:</strong><br>"makan siang 35rb" · "grab 25k"<br><br><strong>Pemasukan:</strong><br>"gaji 5jt" · "+bonus 500rb"<br><br><strong>Commands:</strong><br>/reset · /sync</div></div>`;return;}
+  if(messages.length===0){c.innerHTML=`<div class="empty-state"><div class="icon">💬</div><div class="etitle">Halo! Mulai catat keuanganmu</div><div class="hints"><strong>Pengeluaran:</strong><br>"makan siang 35rb" · "grab 25k"<br><br><strong>Pemasukan:</strong><br>"gaji 5jt" · "+bonus 500rb"<br><br><strong>📷 Scan Struk:</strong><br>Klik tombol kamera untuk foto struk<br><br><strong>Commands:</strong><br>/reset · /sync</div></div>`;return;}
   let html='';
   messages.forEach(m=>{
-    if(m.type==='user'){html+=`<div class="bubble-row user"><div class="bubble user-bubble">${esc(m.text)}</div></div>`;}
+    if(m.type==='user'){
+      let bubble=esc(m.text);
+      if(m.thumb)bubble=`<div class="ocr-preview"><img src="${m.thumb}" alt="struk"></div>${bubble}`;
+      html+=`<div class="bubble-row user"><div class="bubble user-bubble">${bubble}</div></div>`;
+    }
+    else if(m.ocrError){
+      html+=`<div class="bubble-row bot"><div class="bubble bot-bubble"><div>❌ ${esc(m.ocrError)}</div></div></div>`;
+    }
+    else if(m.isOcr&&m.parsed){
+      const p=m.parsed;
+      let itemsHtml='';
+      if(p.ocrItems){p.ocrItems.forEach(i=>{itemsHtml+=`<div style="display:flex;justify-content:space-between;font-size:12px;padding:2px 0"><span>${esc(i.item)}</span><span style="color:var(--red);font-weight:600">${fmtRp(i.amount||0)}</span></div>`;});}
+      html+=`<div class="bubble-row bot"><div class="bubble bot-bubble">
+        <div class="ok">🧾 Struk di-scan!</div>
+        <div style="margin:6px 0;padding:8px;background:var(--surface2);border-radius:8px">${itemsHtml}</div>
+        <div class="detail-grid">
+          <span class="lbl">Total</span><span class="amt-out">−${fmtRp(p.amount)}</span>
+          <span class="lbl">Items</span><span>${p.ocrItems?p.ocrItems.length:0} item</span>
+        </div></div></div>`;
+    }
     else if(m.parsed){const isIn=m.parsed.type==='income';
       html+=`<div class="bubble-row bot"><div class="bubble bot-bubble"><div class="ok">${isIn?'💰 Pemasukan dicatat!':'✅ Dicatat!'}</div><div class="detail-grid"><span class="lbl">Item</span><span>${esc(m.parsed.description)}</span><span class="lbl">Jumlah</span><span class="${isIn?'amt-in':'amt-out'}">${isIn?'+':'−'}${fmtRp(m.parsed.amount)}</span><span class="lbl">Kategori</span><span>${esc(m.parsed.category)}</span><span class="lbl">Waktu</span><span>${fmtTime(m.parsed.date)}</span></div></div></div>`;}
     else{html+=`<div class="bubble-row bot"><div class="bubble bot-bubble"><div>🤔 Ga bisa baca jumlahnya.</div><div class="err-hint">Format: "makan 35rb" atau "gaji 5jt"</div></div></div>`;}
@@ -487,6 +516,118 @@ function exportCSV(){
   a.href=URL.createObjectURL(blob);a.download=`cashchat-${new Date().toISOString().slice(0,10)}.csv`;a.click();
 }
 function esc(s){const d=document.createElement('div');d.textContent=s;return d.innerHTML}
+
+// ═══════════════════════════════════════════════
+// OCR RECEIPT (GEMINI)
+// ═══════════════════════════════════════════════
+async function handleReceipt(fileInput) {
+  const file = fileInput.files[0];
+  if (!file) return;
+  fileInput.value = '';
+
+  if (!GEMINI_KEY) {
+    messages.push({type:'user',text:'📷 [Upload struk]',ts:Date.now()});
+    messages.push({type:'bot',parsed:null,ts:Date.now()+1,ocrError:'Gemini API key belum di-set. Klik ⚙ untuk tambah API key.'});
+    localStorage.setItem('cashchat_msgs',JSON.stringify(messages));
+    updateUI(); return;
+  }
+
+  // Show processing state
+  const camBtn = document.querySelector('.cam-btn');
+  camBtn.classList.add('processing');
+  camBtn.textContent = '⏳';
+
+  // Read file as base64
+  const base64 = await new Promise((res, rej) => {
+    const r = new FileReader();
+    r.onload = () => res(r.result.split(',')[1]);
+    r.onerror = () => rej(new Error('Read failed'));
+    r.readAsDataURL(file);
+  });
+
+  // Create thumbnail for chat
+  const thumbUrl = URL.createObjectURL(file);
+
+  messages.push({type:'user',text:'📷 Scan struk...',ts:Date.now(),thumb:thumbUrl});
+  localStorage.setItem('cashchat_msgs',JSON.stringify(messages));
+  updateUI();
+
+  try {
+    const resp = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-04-17:generateContent?key=${GEMINI_KEY}`, {
+      method: 'POST',
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({
+        contents: [{
+          parts: [
+            {text: `Kamu adalah OCR struk belanja. Baca struk ini dan extract SEMUA item beserta harganya.
+
+RULES:
+- Output HANYA JSON array, tanpa markdown, tanpa backtick, tanpa text lain
+- Format: [{"item":"nama item","amount":harga_angka}]
+- "amount" harus angka bulat dalam Rupiah (bukan string)
+- Abaikan subtotal, tax, total, diskon, kembalian — hanya individual items
+- Kalau ada quantity > 1, kalikan harga per item x quantity
+- Kalau struk ga terbaca atau bukan struk, return []
+
+Contoh output: [{"item":"Nasi Goreng","amount":25000},{"item":"Es Teh","amount":5000}]`},
+            {inline_data: {mime_type: file.type || 'image/jpeg', data: base64}}
+          ]
+        }]
+      })
+    });
+
+    const data = await resp.json();
+    const text = data.candidates?.[0]?.content?.parts?.[0]?.text || '';
+
+    // Parse JSON from response (handle potential markdown wrapping)
+    const jsonStr = text.replace(/```json?\s*/g,'').replace(/```/g,'').trim();
+    const items = JSON.parse(jsonStr);
+
+    if (!Array.isArray(items) || items.length === 0) {
+      messages.push({type:'bot',parsed:null,ts:Date.now(),ocrError:'Ga bisa baca struk ini. Coba foto lebih jelas.'});
+      localStorage.setItem('cashchat_msgs',JSON.stringify(messages));
+      updateUI();
+    } else {
+      // Add each item as an expense
+      let totalAdded = 0;
+      for (const item of items) {
+        if (!item.item || !item.amount || item.amount <= 0) continue;
+        const entry = {
+          id: Date.now().toString(36) + Math.random().toString(36).slice(2,6),
+          amount: Math.round(item.amount),
+          category: categorize(item.item, 'expense'),
+          description: item.item,
+          type: 'expense',
+          date: new Date().toISOString()
+        };
+        await addEntry(entry);
+        totalAdded++;
+      }
+
+      // Summary bot message
+      const totalAmount = items.reduce((s,i) => s + (i.amount||0), 0);
+      const summaryParsed = {
+        description: `${totalAdded} item dari struk`,
+        amount: totalAmount,
+        category: '🧾 Scan Struk',
+        type: 'expense',
+        date: new Date().toISOString(),
+        ocrItems: items
+      };
+      messages.push({type:'bot',parsed:summaryParsed,ts:Date.now(),isOcr:true});
+      localStorage.setItem('cashchat_msgs',JSON.stringify(messages));
+      updateUI();
+    }
+  } catch (err) {
+    console.error('OCR error:', err);
+    messages.push({type:'bot',parsed:null,ts:Date.now(),ocrError:'Error: ' + (err.message||'Gagal proses struk')});
+    localStorage.setItem('cashchat_msgs',JSON.stringify(messages));
+    updateUI();
+  } finally {
+    camBtn.classList.remove('processing');
+    camBtn.textContent = '📷';
+  }
+}
 
 // ═══════════════════════════════════════════════
 // INIT
