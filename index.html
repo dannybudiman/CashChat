@@ -508,14 +508,17 @@ async function addExpense(entry) {
   if (!API_URL) return;
   setSyncStatus('loading');
   try {
-    await fetch(API_URL + '?action=add', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(entry),
-      mode: 'no-cors'
+    const params = new URLSearchParams({
+      action: 'add',
+      id: entry.id,
+      date: entry.date,
+      description: entry.description,
+      category: entry.category,
+      amount: entry.amount
     });
-    // Re-fetch to confirm
-    setTimeout(() => fetchExpenses(), 1500);
+    const res = await fetch(API_URL + '?' + params.toString());
+    await res.json();
+    setSyncStatus('ok');
   } catch (err) {
     console.error('Add error:', err);
     setSyncStatus('err');
@@ -528,8 +531,8 @@ async function deleteExpense(id) {
   if (!API_URL) return;
   setSyncStatus('loading');
   try {
-    await fetch(API_URL + '?action=delete&id=' + encodeURIComponent(id), { mode: 'no-cors' });
-    setTimeout(() => fetchExpenses(), 1500);
+    await fetch(API_URL + '?action=delete&id=' + encodeURIComponent(id));
+    setTimeout(() => fetchExpenses(), 1000);
   } catch (err) {
     console.error('Del error:', err);
     setSyncStatus('err');
