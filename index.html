@@ -278,6 +278,34 @@ const EXPENSE_WORDS=["beli","bayar","bayarin","traktir","ongkir","ongkos","biaya
 function categorize(text,type){const lower=text.toLowerCase();const cats=type==='income'?INC_CATEGORIES:EXP_CATEGORIES;for(const[cat,kws]of Object.entries(cats)){if(kws.some(k=>lower.includes(k)))return cat;}return type==='income'?"💚 Income Lain":"📦 Lainnya";}
 
 // ═══════════════════════════════════════════════
+
+// ═══════════════════════════════════════════════
+// ABBREVIATION EXPANSION
+// ═══════════════════════════════════════════════
+const ABBREVIATIONS={
+  'mkn':'makan','mjn':'makan','mkan':'makan',
+  'mlm':'malam','sng':'siang','sor':'sore',
+  'lnch':'lunch','dnr':'dinner','brkfst':'sarapan',
+  'ojl':'ojol','grb':'grab','gjk':'gojek',
+  'blnj':'belanja','blnja':'belanja','blj':'beli',
+  'dgn':'dengan','utk':'untuk','dg':'dengan',
+  'krn':'karena','tdk':'tidak','udh':'sudah','sdh':'sudah',
+};
+
+function expandAbbreviations(text){
+  const corrections=[];
+  const expanded=text.split(/\s+/).map(word=>{
+    const lower=word.toLowerCase();
+    if(ABBREVIATIONS[lower]){
+      const replacement=ABBREVIATIONS[lower];
+      if(replacement!==lower) corrections.push({from:word,to:replacement});
+      return replacement;
+    }
+    return word;
+  }).join(' ');
+  return{text:expanded,corrections};
+}
+
 // TYPO CORRECTION (Levenshtein fuzzy match)
 // ═══════════════════════════════════════════════
 function levenshtein(a,b){
@@ -299,9 +327,6 @@ const ALL_KNOWN_WORDS=(function(){
   return[...words];
 })();
 
-// Words that should never be auto-corrected (time, common Indonesian words, place indicators)
-const CORRECTION_WHITELIST=new Set(['malam','pagi','siang','sore','tengah','hari','ini','tadi','kemarin','lusa','mall','mal','plaza','square','town','city','center','centre','exchange','park','point','junction','avenue','resto','cafe','warung','toko','pasar','ruko']);
-
 function correctTypos(text){
   const words=text.split(/\s+/);
   const corrections=[];
@@ -309,7 +334,6 @@ function correctTypos(text){
     const lower=word.toLowerCase();
     // Skip numbers, short words, and words that already match
     if(word.match(/\d/)||lower.length<3)return word;
-    if(CORRECTION_WHITELIST.has(lower))return word;
     if(ALL_KNOWN_WORDS.includes(lower))return word;
     // Find closest match
     let bestMatch=null,bestDist=Infinity;
@@ -332,9 +356,12 @@ function correctTypos(text){
 function parseAmount(text){const lower=text.toLowerCase().replace(/\./g,'').replace(/,/g,'');const pats=[{r:/(\d+(?:[.,]\d+)?)\s*jt/i,m:1e6},{r:/(\d+(?:[.,]\d+)?)\s*juta/i,m:1e6},{r:/(\d+(?:[.,]\d+)?)\s*rb/i,m:1e3},{r:/(\d+(?:[.,]\d+)?)\s*ribu/i,m:1e3},{r:/(\d+(?:[.,]\d+)?)\s*k\b/i,m:1e3},{r:/rp\s*(\d+)/i,m:1},{r:/(\d{4,})/,m:1}];for(const{r,m}of pats){const match=lower.match(r);if(match)return Math.round(parseFloat(match[1].replace(',','.'))*m);}return null;}
 
 function parseMessage(text){
-  // Auto-correct typos first
-  const {text:correctedText, corrections} = correctTypos(text);
-  const workText = corrections.length > 0 ? correctedText : text;
+  // Step 1: Expand known abbreviations (mjn→makan, mlm→malam, etc.)
+  const {text:expandedText, corrections:abbrevCorrections} = expandAbbreviations(text);
+  // Step 2: Auto-correct remaining typos with Levenshtein
+  const {text:correctedText, corrections:typoCorrections} = correctTypos(expandedText);
+  const allCorrections=[...abbrevCorrections,...typoCorrections];
+  const workText = allCorrections.length > 0 ? correctedText : text;
 
   const lower=workText.toLowerCase();
   const hasPlus=text.startsWith('+'),hasMinus=text.startsWith('-');
@@ -351,24 +378,14 @@ function parseMessage(text){
   let store=detectStore(clean);
   let descText=clean;
 
-  // Pattern 1: "makan malam di/du/at nama tempat 35rb"
-  const placeMatch=clean.match(/\b(?:di|du|d\/|at|ke)\s+(.+?)(?=\s+[\d]|\s*$)/i);
-  if(placeMatch){
+  // Pattern: "makan mlm di/du/at nama tempat 35rb"
+  const placeMatch=clean.match(/\b(?:di|du|d\/|at|ke)\s+(.+?)(?:\s+\d|\s*$)/i);
+  if(placeMatch && !store){
     const placeName=placeMatch[1].replace(/\d+.*$/,'').replace(/\s*(rb|ribu|jt|juta|k)\b.*$/i,'').trim();
     if(placeName.length>=2){
-      if(!store) store=placeName;
-      descText=clean.replace(/\b(?:di|du|d\/|at|ke)\s+.+?(?=\s+[\d]|\s*$)/i,'').trim();
-    }
-  }
-  // Pattern 2: "makan malam Mall/Plaza/Square X 35rb" — place indicator without preposition
-  if(!store){
-    const mallMatch=clean.match(/\b((?:mall|mal|plaza|square|center|centre|pasar|town|park|junction|exchange|point|avenue)\s+[\w\s]+?)(?=\s+[\d]|\s*$)/i);
-    if(mallMatch){
-      const placeName=mallMatch[1].replace(/\s*(rb|ribu|jt|juta|k)\b.*$/i,'').trim();
-      if(placeName.length>=3){
-        store=placeName;
-        descText=descText.replace(mallMatch[0],'').trim();
-      }
+      store=placeName;
+      // Remove the "di [place]" part from description
+      descText=clean.replace(/\b(?:di|du|d\/|at|ke)\s+.+?(?=\s+\d|\s*$)/i,'').trim();
     }
   }
 
@@ -379,7 +396,7 @@ function parseMessage(text){
   desc=desc.replace(/\bmlm\b/gi,'malam').replace(/\bpg\b/gi,'pagi').replace(/\bsng\b/gi,'siang').replace(/\bsor\b/gi,'sore');
   if(!desc)desc=category.split(' ').slice(1).join(' ');
 
-  return{id:Date.now().toString(36)+Math.random().toString(36).slice(2,6),amount,category,description:desc,type,store,date:new Date().toISOString(),corrections:corrections.length>0?corrections:null};
+  return{id:Date.now().toString(36)+Math.random().toString(36).slice(2,6),amount,category,description:desc,type,store,date:new Date().toISOString(),corrections:allCorrections.length>0?allCorrections:null};
 }
 function fmtRp(n){return'Rp'+Math.abs(n).toLocaleString('id-ID')}
 function fmtDate(iso){return new Date(iso).toLocaleDateString('id-ID',{day:'numeric',month:'short',year:'numeric'})}
