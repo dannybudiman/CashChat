@@ -327,13 +327,17 @@ const ALL_KNOWN_WORDS=(function(){
   return[...words];
 })();
 
+// Words immune to Levenshtein correction (time-of-day, place indicators, common words)
+const CORRECTION_WHITELIST=new Set(['malam','pagi','siang','sore','tengah','mall','mal','plaza','square','town','city','center','centre','exchange','park','point','junction','avenue','resto','cafe','warung','toko','pasar','ruko','market','trade','grand','baru','lama','jaya','indah','makmur','damai','sentosa','mulia','abadi']);
+
 function correctTypos(text){
   const words=text.split(/\s+/);
   const corrections=[];
   const corrected=words.map(word=>{
     const lower=word.toLowerCase();
-    // Skip numbers, short words, and words that already match
+    // Skip numbers, short words, whitelisted words, and words that already match
     if(word.match(/\d/)||lower.length<3)return word;
+    if(CORRECTION_WHITELIST.has(lower))return word;
     if(ALL_KNOWN_WORDS.includes(lower))return word;
     // Find closest match
     let bestMatch=null,bestDist=Infinity;
