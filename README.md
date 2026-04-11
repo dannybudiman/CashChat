@@ -4,6 +4,20 @@ CashChat adalah aplikasi pencatat keuangan berbasis chat yang berjalan sepenuhny
 
 ---
 
+
+## 📱 Tampilan Aplikasi
+
+<p align="center">
+  <img src="screenshot-chat.png" width="250" alt="Tampilan Chat"/>
+  &nbsp;&nbsp;&nbsp;
+  <img src="screenshot-rekap.png" width="250" alt="Tampilan Rekap"/>
+</p>
+<p align="center">
+  <em>Kiri: Tab Chat — input pengeluaran/pemasukan via teks natural &nbsp;|&nbsp; Kanan: Tab Rekap — ringkasan harian/bulanan</em>
+</p>
+
+---
+
 ## ✨ Fitur Utama
 
 - **Chat-based input** — catat pengeluaran dan pemasukan dengan bahasa natural seperti ngetik di WhatsApp
