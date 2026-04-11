@@ -188,7 +188,7 @@ let API_URL=localStorage.getItem('cashchat_api')||DEFAULT_API;
 let GEMINI_KEY=localStorage.getItem('cashchat_gemini')||'';
 let entries=[];
 let messages=JSON.parse(localStorage.getItem('cashchat_msgs')||'[]');
-let recurring=JSON.parse(localStorage.getItem('cashchat_rec')||'[]');
+let recurring=[];
 
 // ═══════════════════════════════════════════════
 // STORES / PLACES
@@ -418,10 +418,60 @@ async function deleteEntry(id){entries=entries.filter(e=>e.id!==id);updateUI();i
 // ═══════════════════════════════════════════════
 // RECURRING
 // ═══════════════════════════════════════════════
-function saveRecurring(){localStorage.setItem('cashchat_rec',JSON.stringify(recurring))}
-function checkRecurring(){const today=new Date();const day=today.getDate();const mk=today.toISOString().slice(0,7);recurring.forEach(r=>{if(r.day===day&&r.lastRun!==mk){const entry={id:Date.now().toString(36)+Math.random().toString(36).slice(2,6),amount:r.amount,category:r.category,description:r.description,type:r.type||'expense',store:r.store||'',date:today.toISOString()};addEntry(entry);messages.push({type:'user',text:`🔄 Auto: ${r.description} ${fmtRp(r.amount)}`,ts:Date.now()},{type:'bot',parsed:entry,ts:Date.now()+1});localStorage.setItem('cashchat_msgs',JSON.stringify(messages));r.lastRun=mk;saveRecurring();}});}
-function addRecurringItem(){const d=document.getElementById('recDesc').value.trim();const a=parseAmount(document.getElementById('recAmt').value);const day=parseInt(document.getElementById('recDay').value);const type=document.getElementById('recType').value;if(!d||!a||!day||day<1||day>31)return;recurring.push({description:d,amount:a,day,category:categorize(d,type),type,store:detectStore(d),lastRun:''});saveRecurring();document.getElementById('recDesc').value='';document.getElementById('recAmt').value='';renderRecurring();}
-function removeRecurring(i){recurring.splice(i,1);saveRecurring();renderRecurring();}
+function saveRecurring(){/* data lives in Google Sheet */}
+async function checkRecurring(){
+  if(!API_URL)return;
+  try{
+    // Fetch latest recurring from Sheet
+    const d=await gasCall({action:'getRecurring'});
+    recurring=Array.isArray(d)?d:[];
+  }catch(e){
+    console.error('Failed to fetch recurring:',e);
+    return;
+  }
+  const today=new Date();const day=today.getDate();const mk=today.toISOString().slice(0,7);
+  for(const r of recurring){
+    if(Number(r.day)===day&&r.lastRun!==mk){
+      const entry={id:Date.now().toString(36)+Math.random().toString(36).slice(2,6),amount:Number(r.amount),category:r.category,description:r.name,type:r.type||'expense',store:r.store||'',date:today.toISOString()};
+      await addEntry(entry);
+      messages.push({type:'user',text:`🔄 Auto: ${r.name} ${fmtRp(r.amount)}`,ts:Date.now()},{type:'bot',parsed:entry,ts:Date.now()+1});
+      localStorage.setItem('cashchat_msgs',JSON.stringify(messages));
+      r.lastRun=mk;
+      // Persist lastRun to Sheet
+      try{await gasCall({action:'updateRecurringLastRun',id:String(r.id),lastRun:mk});}catch(e){console.error(e);}
+    }
+  }
+  renderRecurring();
+}
+async function addRecurringItem(){
+  const d=document.getElementById('recDesc').value.trim();
+  const a=parseAmount(document.getElementById('recAmt').value);
+  const day=parseInt(document.getElementById('recDay').value);
+  const type=document.getElementById('recType').value;
+  if(!d||!a||!day||day<1||day>31)return;
+  const newRec={id:Date.now().toString(36)+Math.random().toString(36).slice(2,6),name:d,amount:a,day,category:categorize(d,type),type,store:detectStore(d),lastRun:''};
+  recurring.push(newRec);
+  renderRecurring();
+  document.getElementById('recDesc').value='';
+  document.getElementById('recAmt').value='';
+  if(!API_URL)return;
+  setSyncStatus('loading');
+  try{
+    await gasCall({action:'addRecurring',id:String(newRec.id),name:String(newRec.name),amount:String(newRec.amount),category:String(newRec.category),day:String(newRec.day),type:String(newRec.type),store:String(newRec.store||''),lastRun:''});
+    setSyncStatus('ok');
+  }catch(e){console.error(e);setSyncStatus('err');}
+}
+async function removeRecurring(i){
+  const r=recurring[i];
+  recurring.splice(i,1);
+  renderRecurring();
+  if(!API_URL||!r)return;
+  setSyncStatus('loading');
+  try{
+    await gasCall({action:'deleteRecurring',id:String(r.id)});
+    setSyncStatus('ok');
+  }catch(e){console.error(e);setSyncStatus('err');}
+}
 
 // ═══════════════════════════════════════════════
 // SETUP
@@ -487,7 +537,7 @@ function renderChart(){
 function renderRecurring(){
   let html=`<div class="rec-panel"><div class="rec-title">🔄 Tagihan & Pengeluaran Rutin</div><p style="font-size:12px;color:var(--text2);margin-bottom:12px">Otomatis dicatat tiap bulan pada tanggal tertentu.</p>`;
   if(recurring.length===0)html+=`<p style="font-size:13px;color:var(--text2);text-align:center;padding:16px">Belum ada tagihan rutin</p>`;
-  else recurring.forEach((r,i)=>{const isIn=r.type==='income';html+=`<div class="rec-item"><div style="font-size:22px">${r.category.split(' ')[0]}</div><div class="rec-info"><div class="rec-desc">${esc(r.description)} <span class="recurring-badge">Tgl ${r.day}</span></div><div class="rec-meta">${r.category}${r.store?' · 🏪 '+r.store:''}</div></div><div class="rec-amt" style="color:${isIn?'var(--green)':'var(--red)'}">${isIn?'+':'−'}${fmtRp(r.amount)}</div><button class="del-btn" onclick="removeRecurring(${i})">×</button></div>`;});
+  else recurring.forEach((r,i)=>{const isIn=r.type==='income';html+=`<div class="rec-item"><div style="font-size:22px">${r.category.split(' ')[0]}</div><div class="rec-info"><div class="rec-desc">${esc(r.name||r.description||'')} <span class="recurring-badge">Tgl ${r.day}</span></div><div class="rec-meta">${r.category}${r.store?' · 🏪 '+r.store:''}</div></div><div class="rec-amt" style="color:${isIn?'var(--green)':'var(--red)'}">${isIn?'+':'−'}${fmtRp(r.amount)}</div><button class="del-btn" onclick="removeRecurring(${i})">×</button></div>`;});
   html+=`<div class="rec-add"><input id="recDesc" placeholder="Nama (WiFi, Gaji...)"><input id="recAmt" placeholder="Jumlah (350rb)"><select id="recDay">${Array.from({length:31},(_,i)=>`<option value="${i+1}">Tgl ${i+1}</option>`).join('')}</select><select id="recType"><option value="expense">Keluar</option><option value="income">Masuk</option></select><button onclick="addRecurringItem()">+ Tambah</button></div></div>`;
   document.getElementById('recurringView').innerHTML=html;
 }
