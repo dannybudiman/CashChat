@@ -38,6 +38,11 @@ cashchat.html   → Aplikasi utama (satu file, langsung buka di browser)
 Code.gs         → Google Apps Script untuk backend Google Sheets
 ```
 
+| File | Keterangan |
+|------|------------|
+| `cashchat.html` | Aplikasi lengkap dalam satu file — HTML, CSS, dan JavaScript. Buka langsung di browser, tidak perlu server. |
+| `Code.gs` | Script backend yang berjalan di Google Apps Script. Bertugas membaca dan menulis data ke Google Sheet (transaksi & tagihan rutin). Perlu di-paste ke Apps Script dan di-deploy sebagai Web App. |
+
 ---
 
 ## 🚀 Cara Setup
@@ -51,11 +56,9 @@ Ada dua bagian yang perlu disiapkan: **Google Sheets** (tempat penyimpanan data)
 1. Buka [sheets.google.com](https://sheets.google.com)
 2. Klik **+ Blank** untuk buat spreadsheet baru
 3. Beri nama sesuai selera, misalnya `CashChat Data`
-4. Buat header di baris pertama dengan kolom berikut (isi di baris 1, kolom A sampai G):
+4. Rename sheet pertama (tab di bawah) menjadi **`Transactions`** — klik kanan tab → Rename
 
-   | A | B | C | D | E | F | G |
-   |---|---|---|---|---|---|---|
-   | id | date | description | category | amount | type | store |
+> Sheet kedua bernama `Recurring` akan **otomatis dibuat** oleh Apps Script saat pertama kali app dijalankan. Tidak perlu dibuat manual.
 
 #### Langkah 2: Buka Apps Script
 
@@ -93,6 +96,41 @@ Ada dua bagian yang perlu disiapkan: **Google Sheets** (tempat penyimpanan data)
 3. Paste **Web app URL** dari Apps Script ke kolom **Google Apps Script URL**
 4. Klik **💾 Simpan**
 5. Aplikasi akan langsung sync dengan Google Sheet kamu
+
+---
+
+## 🗃️ Struktur Google Sheet
+
+CashChat menggunakan **2 sheet** dalam satu file Google Sheets:
+
+### Sheet 1: `Transactions`
+Menyimpan semua transaksi pengeluaran dan pemasukan.
+
+| Kolom | Isi |
+|-------|-----|
+| `id` | ID unik transaksi |
+| `date` | Tanggal & waktu (ISO format) |
+| `description` | Deskripsi transaksi |
+| `category` | Kategori otomatis (🍔 Makan, 🚗 Transport, dll) |
+| `amount` | Nominal dalam Rupiah |
+| `type` | `expense` atau `income` |
+| `store` | Nama tempat/lokasi (jika terdeteksi) |
+
+### Sheet 2: `Recurring`
+Menyimpan daftar tagihan & pengeluaran rutin bulanan. **Dibuat otomatis** oleh Apps Script, tidak perlu buat manual.
+
+| Kolom | Isi |
+|-------|-----|
+| `id` | ID unik tagihan rutin |
+| `name` | Nama tagihan (WiFi, Gaji, dll) |
+| `amount` | Nominal dalam Rupiah |
+| `category` | Kategori |
+| `day` | Tanggal jatuh tempo tiap bulan (1–31) |
+| `type` | `expense` atau `income` |
+| `store` | Nama tempat (opsional) |
+| `lastRun` | Bulan terakhir tagihan ini dicatat (format: `YYYY-MM`) |
+
+> Data tagihan rutin tersimpan di Sheet, bukan di browser — jadi tidak hilang meski ganti HP atau clear browser cache.
 
 ---
 
@@ -236,4 +274,9 @@ CashChat otomatis mendeteksi kategori berdasarkan kata kunci:
 
 **Data di Sheet tidak muncul di app**
 - Klik `/sync` di chat untuk force refresh
-- Pastikan header di baris 1 Sheet sudah benar: `id, date, description, category, amount, type, store`
+- Pastikan sheet pertama sudah di-rename jadi `Transactions` (bukan `Sheet1`)
+
+**Tab Rutin kosong, tagihan rutin tidak tersimpan**
+- Pastikan Apps Script sudah di-deploy ulang dengan `Code.gs` terbaru
+- Sheet `Recurring` seharusnya otomatis muncul — kalau belum ada, coba tambah satu tagihan rutin dulu dari app
+- Pastikan nama sheet persis `Recurring` (huruf besar R)
