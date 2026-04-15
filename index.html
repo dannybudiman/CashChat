@@ -80,6 +80,20 @@ body{font-family:'DM Sans',-apple-system,sans-serif;background:var(--bg);color:v
 .tx-item .price{font-family:'JetBrains Mono',monospace;font-size:13px;font-weight:700;white-space:nowrap}
 .del-btn{border:none;background:transparent;color:var(--text2);cursor:pointer;font-size:18px;padding:4px;opacity:.4}
 .del-btn:hover{opacity:1;color:var(--red)}
+.edit-btn{border:none;background:transparent;color:var(--text2);cursor:pointer;font-size:14px;padding:4px;opacity:.4}
+.edit-btn:hover{opacity:1;color:var(--accent2)}
+.edit-modal{position:fixed;inset:0;z-index:200;background:rgba(0,0,0,.7);display:flex;align-items:center;justify-content:center;padding:20px}
+.edit-card{background:var(--surface);border:1px solid var(--border);border-radius:16px;padding:20px;width:100%;max-width:400px}
+.edit-card h3{font-size:16px;margin-bottom:16px;font-family:'JetBrains Mono',monospace}
+.edit-row{margin-bottom:12px}
+.edit-row label{font-size:11px;color:var(--text2);text-transform:uppercase;letter-spacing:1px;display:block;margin-bottom:4px}
+.edit-row input,.edit-row select{width:100%;padding:10px 14px;background:var(--surface2);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:14px;font-family:'DM Sans',sans-serif;outline:none}
+.edit-row input:focus,.edit-row select:focus{border-color:var(--accent)}
+.edit-row select{color-scheme:dark}
+.edit-actions{display:flex;gap:8px;margin-top:16px}
+.edit-actions button{flex:1;padding:12px;border:none;border-radius:10px;font-size:14px;font-weight:600;cursor:pointer;font-family:'DM Sans',sans-serif}
+.edit-save{background:var(--accent);color:#fff}
+.edit-cancel{background:var(--surface2);color:var(--text2)}
 .ct{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:1.2px;color:var(--text2);margin-bottom:14px}
 .bar-row{margin-bottom:12px}
 .bar-label{display:flex;justify-content:space-between;font-size:13px;margin-bottom:4px}
@@ -144,6 +158,7 @@ body{font-family:'DM Sans',-apple-system,sans-serif;background:var(--bg);color:v
     <button class="s-btn" style="background:var(--surface2);color:var(--text2)" onclick="closeSettings()">← Kembali</button>
   </div>
   <div id="mainApp" style="display:none;flex-direction:column;flex:1;height:100dvh">
+    <div id="editContainer"></div>
     <div class="header">
       <div class="header-top">
         <div><h1>💸 CashChat</h1><div class="user-info" id="userName"></div></div>
@@ -263,6 +278,37 @@ async function addEntry(entry){
 async function deleteEntry(id){
   await db.collection('users').doc(currentUser.uid).collection('entries').doc(id).delete();
 }
+async function updateEntry(id,updates){
+  await db.collection('users').doc(currentUser.uid).collection('entries').doc(id).update(updates);
+}
+function openEdit(id){
+  const e=entries.find(x=>x.id===id);if(!e)return;
+  const cats=Object.keys(e.type==='income'?IC:EC);
+  let h=`<div class="edit-modal" onclick="if(event.target===this)closeEdit()"><div class="edit-card">
+    <h3>✏️ Edit Transaksi</h3>
+    <div class="edit-row"><label>Deskripsi</label><input id="edDesc" value="${esc(e.description||'')}"></div>
+    <div class="edit-row"><label>Jumlah</label><input id="edAmt" type="number" value="${e.amount}"></div>
+    <div class="edit-row"><label>Tempat / Toko</label><input id="edStore" value="${esc(e.store||'')}" placeholder="(opsional)"></div>
+    <div class="edit-row"><label>Kategori</label><select id="edCat">${cats.map(c=>`<option value="${esc(c)}"${c===e.category?' selected':''}>${c}</option>`).join('')}</select></div>
+    <div class="edit-row"><label>Tipe</label><select id="edType"><option value="expense"${e.type!=='income'?' selected':''}>Pengeluaran</option><option value="income"${e.type==='income'?' selected':''}>Pemasukan</option></select></div>
+    <div class="edit-actions">
+      <button class="edit-cancel" onclick="closeEdit()">Batal</button>
+      <button class="edit-save" onclick="saveEdit('${id}')">💾 Simpan</button>
+    </div>
+  </div></div>`;
+  document.getElementById('editContainer').innerHTML=h;
+}
+function closeEdit(){document.getElementById('editContainer').innerHTML='';}
+async function saveEdit(id){
+  const desc=document.getElementById('edDesc').value.trim();
+  const amt=parseInt(document.getElementById('edAmt').value);
+  const store=document.getElementById('edStore').value.trim();
+  const cat=document.getElementById('edCat').value;
+  const type=document.getElementById('edType').value;
+  if(!desc||!amt)return;
+  await updateEntry(id,{description:desc,amount:amt,store:store,category:cat,type:type});
+  closeEdit();
+}
 async function addMsg(msg){
   await db.collection('users').doc(currentUser.uid).collection('messages').add({...msg,ts:firebase.firestore.FieldValue.serverTimestamp()});
 }
@@ -377,7 +423,7 @@ function renderRecap(){
   h+=`<div class="summary-row"><div class="scard" style="background:rgba(81,207,102,.08)"><div class="sl">Masuk</div><div class="sv" style="color:var(--green)">+${fmtRp(inc)}</div></div><div class="scard" style="background:rgba(255,107,107,.08)"><div class="sl">Keluar</div><div class="sv" style="color:var(--red)">−${fmtRp(exp)}</div></div></div>`;
   h+=`<div class="scard" style="background:rgba(108,92,231,.1);margin-bottom:16px"><div class="sl">Saldo ${pL}</div><div class="sv" style="color:${bal>=0?'var(--green)':'var(--red)'}">${bal>=0?'+':'−'}${fmtRp(Math.abs(bal))}</div><div class="ss">${fl.length} transaksi</div></div>`;
   if(fl.length===0)h+=`<div class="empty-state" style="padding:24px"><div class="icon">🎉</div><div class="etitle" style="font-size:14px">Belum ada transaksi</div></div>`;
-  else fl.forEach(e=>{const isIn=e.type==='income';const st=e.store?' · 🏪 '+e.store:'';h+=`<div class="tx-item"><div style="font-size:22px">${(e.category||'📦').split(' ')[0]}</div><div class="info"><div class="desc">${esc(e.description||'')}</div><div class="meta">${fmtDate(e.date)} · ${fmtTime(e.date)}${st}</div></div><div class="price" style="color:${isIn?'var(--green)':'var(--red)'}">${isIn?'+':'−'}${fmtRp(e.amount)}</div><button class="del-btn" onclick="deleteEntry('${e.id}')">×</button></div>`;});
+  else fl.forEach(e=>{const isIn=e.type==='income';const st=e.store?' · 🏪 '+e.store:'';h+=`<div class="tx-item"><div style="font-size:22px">${(e.category||'📦').split(' ')[0]}</div><div class="info"><div class="desc">${esc(e.description||'')}</div><div class="meta">${fmtDate(e.date)} · ${fmtTime(e.date)}${st}</div></div><div class="price" style="color:${isIn?'var(--green)':'var(--red)'}">${isIn?'+':'−'}${fmtRp(e.amount)}</div><button class="edit-btn" onclick="openEdit('${e.id}')" title="Edit">✏️</button><button class="del-btn" onclick="deleteEntry('${e.id}')" title="Hapus">×</button></div>`;});
   document.getElementById('recapView').innerHTML=h;
 }
 function setRP(p){recapPeriod=p;renderRecap();}
