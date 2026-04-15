@@ -3,105 +3,94 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>CashChat — Sync v2</title>
+    <title>CashChat — Ultimate Sync</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=JetBrains+Mono:wght@600;700&display=swap" rel="stylesheet">
     <style>
-        :root{--bg:#08080d;--surface:#101018;--surface2:#181825;--surface3:#22223a;--border:#2a2a42;--text:#e4e2f0;--text2:#8886a0;--accent:#6c5ce7;--accent2:#a29bfe;--red:#ff6b6b;--green:#51cf66;--bot-bg:#16162a;--yellow:#feca57}
+        :root{--bg:#08080d;--surface:#101018;--surface2:#181825;--surface3:#22223a;--border:#2a2a42;--text:#e4e2f0;--text2:#8886a0;--accent:#6c5ce7;--accent2:#a29bfe;--red:#ff6b6b;--green:#51cf66;--bot-bg:#16162a}
         *{margin:0;padding:0;box-sizing:border-box}
-        body{font-family:'DM Sans',-apple-system,sans-serif;background:var(--bg);color:var(--text);height:100dvh;display:flex;justify-content:center;overflow:hidden}
-        #app{width:100%;max-width:500px;height:100%;display:flex;flex-direction:column;position:relative;background:var(--bg)}
-        
-        /* Header & Nav */
-        header{padding:16px;display:flex;justify-content:space-between;align-items:center;border-bottom:1px solid var(--border);background:var(--bg);z-index:10}
-        .logo{font-family:'JetBrains Mono',monospace;font-weight:700;font-size:1.2rem;color:var(--accent2)}
+        body{font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--text);height:100dvh;overflow:hidden;display:flex;justify-content:center}
+        #app{width:100%;max-width:500px;height:100%;display:flex;flex-direction:column;position:relative}
         
         /* Auth Screen */
-        #auth-screen{position:absolute;inset:0;background:var(--bg);display:flex;flex-direction:column;justify-content:center;align-items:center;padding:20px;z-index:100}
-        .btn-auth{background:var(--accent);color:white;border:none;padding:12px 24px;border-radius:12px;font-weight:600;cursor:pointer;width:100%;max-width:280px;margin-bottom:10px}
+        #auth-screen{position:absolute;inset:0;background:var(--bg);display:flex;flex-direction:column;justify-content:center;align-items:center;z-index:100;padding:20px}
+        .btn-auth{background:var(--accent);color:white;border:none;padding:14px;border-radius:12px;width:100%;max-width:280px;font-weight:600;cursor:pointer}
 
-        /* Tabs */
-        .tab-content{flex:1;overflow-y:auto;padding:16px;display:none;padding-bottom:100px}
+        /* Tabs & Content */
+        header{padding:16px;display:flex;justify-content:space-between;border-bottom:1px solid var(--border)}
+        .tab-content{flex:1;overflow-y:auto;padding:16px;display:none;padding-bottom:140px}
         .active-tab{display:flex;flex-direction:column}
         
         /* Chat UI */
         #chat-list{display:flex;flex-direction:column;gap:12px}
-        .msg{max-width:85%;padding:10px 14px;border-radius:16px;font-size:0.95rem;line-height:1.4;position:relative}
-        .msg.user{align-self:flex-end;background:var(--accent);color:white;border-bottom-right-radius:4px}
+        .msg{max-width:85%;padding:10px 14px;border-radius:16px;font-size:0.95rem;word-wrap:break-word}
+        .msg.user{align-self:flex-end;background:var(--accent);border-bottom-right-radius:4px}
         .msg.bot{align-self:flex-start;background:var(--bot-bg);border:1px solid var(--border);border-bottom-left-radius:4px}
+
+        /* Input & Nav */
+        .input-area{position:absolute;bottom:70px;left:0;right:0;padding:12px;background:rgba(8,8,13,0.95);display:flex;gap:8px;border-top:1px solid var(--border)}
+        input{flex:1;background:var(--surface2);border:1px solid var(--border);padding:12px;border-radius:12px;color:white;outline:none}
+        .btn-send{background:var(--accent);border:none;width:48px;border-radius:12px;cursor:pointer}
         
-        /* Input Area */
-        .input-area{position:absolute;bottom:70px;left:0;right:0;padding:12px;background:rgba(8,8,13,0.9);backdrop-filter:blur(10px);display:flex;gap:8px;border-top:1px solid var(--border)}
-        input{flex:1;background:var(--surface2);border:1px solid var(--border);padding:12px 16px;border-radius:12px;color:white;outline:none}
-        .btn-send{background:var(--accent);border:none;width:45px;height:45px;border-radius:12px;cursor:pointer;display:flex;align-items:center;justify-content:center}
-
-        /* Bottom Nav */
-        nav{position:absolute;bottom:0;width:100%;height:70px;background:var(--surface);border-top:1px solid var(--border);display:flex;justify-content:space-around;align-items:center}
-        .nav-item{text-align:center;color:var(--text2);cursor:pointer;transition:0.2s;flex:1}
+        nav{position:absolute;bottom:0;width:100%;height:70px;background:var(--surface);border-top:1px solid var(--border);display:flex;align-items:center}
+        .nav-item{flex:1;text-align:center;color:var(--text2);cursor:pointer;font-size:0.7rem}
         .nav-item.active{color:var(--accent2)}
-        .nav-item p{font-size:0.7rem;margin-top:4px}
+        .nav-item span{display:block;font-size:1.2rem;margin-bottom:2px}
 
-        /* Rekap Card */
+        /* Cards */
         .card{background:var(--surface2);padding:16px;border-radius:16px;margin-bottom:16px;border:1px solid var(--border)}
         .stat-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}
-        .stat-val{font-size:1.1rem;font-weight:700}
-        .routine-item{display:flex;justify-content:space-between;padding:10px 0;border-bottom:1px solid var(--border)}
+        .item-row{display:flex;justify-content:space-between;padding:12px 0;border-bottom:1px solid var(--border)}
     </style>
 </head>
 <body>
 
 <div id="app">
     <div id="auth-screen">
-        <h1 class="logo" style="margin-bottom:20px">CashChat</h1>
-        <button class="btn-auth" onclick="loginGoogle()">Login with Google</button>
-        <p style="color:var(--text2); font-size: 0.8rem;">Amankan data pengeluaranmu di cloud</p>
+        <h1 style="color:var(--accent2);margin-bottom:20px;font-family:'JetBrains Mono'">CashChat</h1>
+        <button class="btn-auth" id="login-btn">Login with Google</button>
     </div>
 
     <header>
-        <div class="logo">CashChat</div>
-        <div id="user-info" style="font-size:0.8rem; color:var(--text2)"></div>
+        <div style="font-weight:700;color:var(--accent2)">CashChat</div>
+        <div id="user-display" style="font-size:0.8rem;color:var(--text2)"></div>
     </header>
 
-    <div id="tab-chat" class="tab-content active-tab">
-        <div id="chat-list"></div>
-    </div>
-
+    <div id="tab-chat" class="tab-content active-tab"><div id="chat-list"></div></div>
+    
     <div id="tab-rekap" class="tab-content">
         <div class="card">
-            <h3 style="margin-bottom:10px">Bulan Ini</h3>
             <div class="stat-grid">
-                <div><p style="font-size:0.7rem; color:var(--text2)">Pengeluaran</p><p class="stat-val" id="total-out" style="color:var(--red)">Rp 0</p></div>
-                <div><p style="font-size:0.7rem; color:var(--text2)">Pemasukan</p><p class="stat-val" id="total-in" style="color:var(--green)">Rp 0</p></div>
+                <div><p style="font-size:0.7rem">PENGELUARAN</p><p id="total-out" style="color:var(--red);font-weight:700">Rp 0</p></div>
+                <div><p style="font-size:0.7rem">PEMASUKAN</p><p id="total-in" style="color:var(--green);font-weight:700">Rp 0</p></div>
             </div>
         </div>
         <div id="history-list"></div>
     </div>
 
     <div id="tab-routine" class="tab-content">
-        <h3 style="margin-bottom:15px">Transaksi Rutin</h3>
+        <h3 style="margin-bottom:10px">Transaksi Rutin</h3>
         <div id="routine-list"></div>
-        <p style="font-size: 0.8rem; color: var(--text2); margin-top: 10px;">*Gunakan chat "rutin bayar wifi 300rb tiap tanggal 5" untuk menambah.</p>
     </div>
 
-    <div class="input-area" id="main-input">
-        <input type="text" id="user-input" placeholder="Ketik 'makan siang 35rb'...">
-        <button class="btn-send" onclick="handleSend()">🚀</button>
+    <div class="input-area" id="input-box">
+        <input type="text" id="user-input" placeholder="Ketik: Makan 50rb">
+        <button class="btn-send" id="send-btn">🚀</button>
     </div>
 
     <nav>
-        <div class="nav-item active" onclick="switchTab('chat')"><span>💬</span><p>Chat</p></div>
-        <div class="nav-item" onclick="switchTab('rekap')"><span>📊</span><p>Rekap</p></div>
-        <div class="nav-item" onclick="switchTab('routine')" id="nav-routine"><span>🔄</span><p>Rutin</p></div>
+        <div class="nav-item active" data-tab="chat"><span>💬</span>Chat</div>
+        <div class="nav-item" data-tab="rekap"><span>📊</span>Rekap</div>
+        <div class="nav-item" data-tab="routine"><span>🔄</span>Rutin</div>
     </nav>
 </div>
 
 <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
     import { getAuth, GoogleAuthProvider, signInWithPopup, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
-    import { getFirestore, doc, setDoc, collection, addDoc, query, orderBy, onSnapshot, serverTimestamp, getDocs } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
+    import { getFirestore, collection, addDoc, query, orderBy, onSnapshot, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
 
-    // --- KONFIGURASI FIREBASE ---
-    // (Gunakan milik Anda dari file sebelumnya)
+    // --- PASTIIN FIREBASE CONFIG INI SESUAI DENGAN PUNYA ANDA ---
     const firebaseConfig = {
         apiKey: "AIzaSyD-...", 
         authDomain: "cashchat-f483a.firebaseapp.com",
@@ -117,146 +106,91 @@
     const provider = new GoogleAuthProvider();
 
     let user = null;
-    let entries = [];
-    let messages = [];
+    let transactions = [];
 
-    // --- AUTH LOGIC ---
-    window.loginGoogle = () => {
-        signInWithPopup(auth, provider).catch(err => alert(err.message));
-    };
+    // --- ELEMENTS ---
+    const chatList = document.getElementById('chat-list');
+    const userInput = document.getElementById('user-input');
+    const historyList = document.getElementById('history-list');
+
+    // --- AUTH ---
+    document.getElementById('login-btn').onclick = () => signInWithPopup(auth, provider);
 
     onAuthStateChanged(auth, (u) => {
         if (u) {
             user = u;
             document.getElementById('auth-screen').style.display = 'none';
-            document.getElementById('user-info').textContent = u.displayName;
-            initDataSync(); // Sinkronisasi otomatis
+            document.getElementById('user-display').textContent = u.displayName;
+            startSync();
         } else {
             document.getElementById('auth-screen').style.display = 'flex';
         }
     });
 
-    // --- DATA SYNC (Firestore) ---
-    function initDataSync() {
-        // Sinkronisasi Transaksi (Issue #1)
-        const qEntries = query(collection(db, 'users', user.uid, 'entries'), orderBy('date', 'desc'));
-        onSnapshot(qEntries, (snap) => {
-            entries = snap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-            updateUI(); // Selalu panggil UI update saat data berubah
-        });
-
-        // Sinkronisasi Pesan Chat (Issue #3)
+    // --- REALTIME SYNC ---
+    function startSync() {
+        // Sync Pesan Chat (Agar Web & Mobile Sama)
         const qMsgs = query(collection(db, 'users', user.uid, 'messages'), orderBy('ts', 'asc'));
         onSnapshot(qMsgs, (snap) => {
-            messages = snap.docs.map(doc => doc.data());
-            renderMessages();
-            const container = document.getElementById('tab-chat');
-            container.scrollTop = container.scrollHeight;
+            chatList.innerHTML = snap.docs.map(d => `<div class="msg ${d.data().type}">${d.data().text}</div>`).join('');
+            document.getElementById('tab-chat').scrollTop = document.getElementById('tab-chat').scrollHeight;
+        });
+
+        // Sync Transaksi untuk Rekap
+        const qTrans = query(collection(db, 'users', user.uid, 'entries'), orderBy('date', 'desc'));
+        onSnapshot(qTrans, (snap) => {
+            transactions = snap.docs.map(d => d.data());
+            updateUI();
         });
     }
 
-    async function addEntryToFirebase(entry) {
-        await addDoc(collection(db, 'users', user.uid, 'entries'), {
-            ...entry,
-            createdAt: serverTimestamp()
-        });
-    }
-
-    async function saveMsgToFirebase(text, type, parsed = null) {
-        await addDoc(collection(db, 'users', user.uid, 'messages'), {
-            text, type, parsed, ts: Date.now()
-        });
-    }
-
-    // --- UI LOGIC ---
-    window.switchTab = (tab) => {
-        document.querySelectorAll('.tab-content').forEach(t => t.classList.remove('active-tab'));
-        document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
-        document.getElementById('tab-' + tab).classList.add('active-tab');
-        event.currentTarget.classList.add('active');
-        
-        // Hide/Show input area
-        document.getElementById('main-input').style.display = (tab === 'chat') ? 'flex' : 'none';
-    };
-
-    function renderMessages() {
-        const list = document.getElementById('chat-list');
-        list.innerHTML = messages.map(m => `
-            <div class="msg ${m.type}">
-                ${m.text}
-                ${m.parsed ? `<div style="font-size:0.75rem; margin-top:5px; opacity:0.8; border-top:1px solid rgba(255,255,255,0.1); padding-top:4px">
-                    ✅ Tercatat: ${m.parsed.category} - Rp ${m.parsed.amount.toLocaleString()}
-                </div>` : ''}
-            </div>
-        `).join('');
-    }
-
-    function updateUI() {
-        // Rekap Isu #1 Fix
-        const now = new Date();
-        const thisMonth = entries.filter(e => {
-            const d = new Date(e.date);
-            return d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear();
-        });
-
-        const totalIn = thisMonth.filter(e => e.type === 'income').reduce((s, e) => s + e.amount, 0);
-        const totalOut = thisMonth.filter(e => e.type === 'expense').reduce((s, e) => s + e.amount, 0);
-
-        document.getElementById('total-in').textContent = `Rp ${totalIn.toLocaleString()}`;
-        document.getElementById('total-out').textContent = `Rp ${totalOut.toLocaleString()}`;
-
-        // Render History di Tab Rekap
-        const hist = document.getElementById('history-list');
-        hist.innerHTML = entries.slice(0, 20).map(e => `
-            <div class="routine-item">
-                <div>
-                    <p style="font-weight:600">${e.description}</p>
-                    <p style="font-size:0.7rem; color:var(--text2)">${new Date(e.date).toLocaleDateString()}</p>
-                </div>
-                <p style="color:${e.type==='income'?'var(--green)':'var(--red)'}">
-                    ${e.type==='income'?'+':'-'} ${e.amount.toLocaleString()}
-                </p>
-            </div>
-        `).join('');
-    }
-
-    // --- PARSER AI SEDERHANA ---
     async function handleSend() {
-        const input = document.getElementById('user-input');
-        const text = input.value.trim();
-        if (!text) return;
+        const val = userInput.value.trim();
+        if (!val) return;
+        userInput.value = '';
 
-        // 1. Simpan pesan user ke Firebase (agar sync)
-        await saveMsgToFirebase(text, 'user');
-        input.value = '';
+        // Simpan Chat ke Firebase
+        await addDoc(collection(db, 'users', user.uid, 'messages'), { text: val, type: 'user', ts: Date.now() });
 
-        // 2. Logic Parsing (Sederhana untuk contoh)
-        const amountMatch = text.match(/(\d+)(?:\s*(?:rb|k|jt|juta))?/i);
-        if (amountMatch) {
-            let amount = parseInt(amountMatch[1]);
-            if (text.toLowerCase().includes('rb') || text.toLowerCase().includes('k')) amount *= 1000;
-            if (text.toLowerCase().includes('jt')) amount *= 1000000;
+        // Simple Parser
+        const match = val.match(/(\d+)(?:\s*(rb|k|jt))?/i);
+        if (match) {
+            let amt = parseInt(match[1]);
+            if (/rb|k/i.test(val)) amt *= 1000;
+            if (/jt/i.test(val)) amt *= 1000000;
 
-            const entry = {
-                amount,
-                description: text.replace(amountMatch[0], '').trim() || 'Lainnya',
-                category: text.toLowerCase().includes('makan') ? 'Makanan' : 'Umum',
-                type: 'expense',
-                date: new Date().toISOString()
-            };
-
-            await addEntryToFirebase(entry);
-            await saveMsgToFirebase(`Siap, sudah dicatat ya!`, 'bot', entry);
-        } else {
-            await saveMsgToFirebase(`Hmm, aku bingung. Coba ketik seperti: 'makan siang 35rb'`, 'bot');
+            const entry = { amount: amt, description: val.replace(match[0], '').trim() || 'Lainnya', type: 'expense', date: new Date().toISOString() };
+            await addDoc(collection(db, 'users', user.uid, 'entries'), entry);
+            await addDoc(collection(db, 'users', user.uid, 'messages'), { text: `✅ Terpencatat Rp ${amt.toLocaleString()}`, type: 'bot', ts: Date.now() });
         }
     }
 
-    // Listen Enter
-    document.getElementById('user-input').addEventListener('keypress', (e) => {
-        if (e.key === 'Enter') handleSend();
-    });
-</script>
+    function updateUI() {
+        const out = transactions.reduce((s, t) => s + t.amount, 0);
+        document.getElementById('total-out').textContent = `Rp ${out.toLocaleString()}`;
+        
+        historyList.innerHTML = transactions.slice(0, 10).map(t => `
+            <div class="item-row">
+                <div><p>${t.description}</p><p style="font-size:0.6rem;color:var(--text2)">${new Date(t.date).toLocaleDateString()}</p></div>
+                <p style="color:var(--red)">-${t.amount.toLocaleString()}</p>
+            </div>
+        `).join('');
+    }
 
+    // --- NAVIGATION ---
+    document.querySelectorAll('.nav-item').forEach(nav => {
+        nav.onclick = () => {
+            const tab = nav.dataset.tab;
+            document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active-tab'));
+            document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+            document.getElementById('tab-' + tab).classList.add('active-tab');
+            nav.classList.add('active');
+            document.getElementById('input-box').style.display = (tab === 'chat') ? 'flex' : 'none';
+        };
+    });
+
+    document.getElementById('send-btn').onclick = handleSend;
+    userInput.onkeypress = (e) => { if(e.key==='Enter') handleSend(); };
+</script>
 </body>
 </html>
