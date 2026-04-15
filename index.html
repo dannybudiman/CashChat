@@ -88,6 +88,21 @@ body{font-family:'DM Sans',-apple-system,sans-serif;background:var(--bg);color:v
 .bar-fill{height:100%;border-radius:4px;transition:width .6s ease}
 .bar-fill.out{background:linear-gradient(90deg,var(--accent),var(--accent2))}
 .bar-fill.in{background:linear-gradient(90deg,#20bf6b,#51cf66)}
+.rec-panel{padding:14px;background:var(--surface);border:1px solid var(--border);border-radius:12px;margin-bottom:16px}
+.rec-panel .rec-title{font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:var(--yellow);margin-bottom:10px}
+.rec-item{display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid var(--border)}
+.rec-item:last-child{border:none}
+.rec-item .rec-info{flex:1;min-width:0}
+.rec-item .rec-desc{font-size:13px;font-weight:500}
+.rec-item .rec-meta{font-size:11px;color:var(--text2)}
+.rec-item .rec-amt{font-family:'JetBrains Mono',monospace;font-size:13px;font-weight:700}
+.recurring-badge{font-size:10px;background:var(--surface3);color:var(--yellow);padding:2px 6px;border-radius:4px;margin-left:4px}
+.rec-add{display:flex;gap:6px;margin-top:10px;flex-wrap:wrap}
+.rec-add input,.rec-add select{padding:8px;background:var(--surface2);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:12px;font-family:'DM Sans',sans-serif;outline:none}
+.rec-add input{flex:1;min-width:100px}
+.rec-add input::placeholder{color:var(--text2)}
+.rec-add select{color-scheme:dark}
+.rec-add button{padding:8px 14px;background:var(--accent);color:#fff;border:none;border-radius:8px;font-size:12px;font-weight:600;cursor:pointer;font-family:'DM Sans',sans-serif}
 .input-bar{padding:12px 16px;border-top:1px solid var(--border);background:var(--surface);display:flex;gap:8px;align-items:center}
 .input-bar input[type="text"]{flex:1;padding:13px 18px;background:var(--surface2);border:1px solid var(--border);border-radius:24px;color:var(--text);font-size:14px;font-family:'DM Sans',sans-serif;outline:none}
 .input-bar input[type="text"]:focus{border-color:var(--accent)}
@@ -141,12 +156,14 @@ body{font-family:'DM Sans',-apple-system,sans-serif;background:var(--bg);color:v
         <button class="tab-btn active" onclick="switchTab('chat',this)">💬 Chat</button>
         <button class="tab-btn" onclick="switchTab('recap',this)">📊 Rekap</button>
         <button class="tab-btn" onclick="switchTab('chart',this)">📈 Chart</button>
+        <button class="tab-btn" onclick="switchTab('recurring',this)">🔄 Rutin</button>
       </div>
     </div>
     <div class="content" id="content">
       <div id="chatView"></div>
       <div id="recapView" style="display:none"></div>
       <div id="chartView" style="display:none"></div>
+      <div id="recurringView" style="display:none"></div>
     </div>
     <div class="input-bar">
       <input type="file" id="receiptInput" accept="image/*" capture="environment" style="display:none" onchange="handleReceipt(this)">
@@ -180,7 +197,8 @@ let currentUser=null;
 let entries=[];
 let messages=[];
 let GEMINI_KEY=localStorage.getItem('cashchat_gemini')||'';
-let unsubEntries=null,unsubMessages=null;
+let unsubEntries=null,unsubMessages=null,unsubRecurring=null;
+let recurring=[];
 
 // ═══════════════════════════════════════════════
 // AUTH
@@ -195,7 +213,7 @@ document.getElementById('authSubmit').onclick=async()=>{
 };
 document.getElementById('authToggleBtn').onclick=()=>{isRegister=!isRegister;document.getElementById('authSubmit').textContent=isRegister?'Daftar':'Login';document.getElementById('authToggleText').textContent=isRegister?'Udah punya akun?':'Belum punya akun?';document.getElementById('authToggleBtn').textContent=isRegister?'Login':'Daftar';document.getElementById('authError').style.display='none';};
 function showAuthErr(m){const el=document.getElementById('authError');el.textContent=m;el.style.display='block';}
-function doLogout(){if(unsubEntries)unsubEntries();if(unsubMessages)unsubMessages();auth.signOut();}
+function doLogout(){if(unsubEntries)unsubEntries();if(unsubMessages)unsubMessages();if(unsubRecurring)unsubRecurring();auth.signOut();}
 
 auth.onAuthStateChanged(user=>{
   document.getElementById('loadingScreen').style.display='none';
@@ -231,6 +249,14 @@ function startSync(){
     .onSnapshot(snap=>{
       messages=snap.docs.map(d=>({id:d.id,...d.data()}));
       renderChat();
+    });
+  // Recurring items
+  if(unsubRecurring)unsubRecurring();
+  unsubRecurring=db.collection('users').doc(currentUser.uid).collection('recurring').orderBy('description')
+    .onSnapshot(snap=>{
+      recurring=snap.docs.map(d=>({id:d.id,...d.data()}));
+      renderRecurring();
+      checkRecurring();
     });
 }
 async function addEntry(entry){
@@ -279,6 +305,42 @@ function fmtTime(iso){return new Date(iso).toLocaleTimeString('id-ID',{hour:'2-d
 function esc(s){const d=document.createElement('div');d.textContent=s;return d.innerHTML}
 
 // ═══════════════════════════════════════════════
+// RECURRING
+// ═══════════════════════════════════════════════
+async function addRecurringItem(){
+  const d=document.getElementById('recDesc').value.trim();
+  const a=parseAmount(document.getElementById('recAmt').value);
+  const day=parseInt(document.getElementById('recDay').value);
+  const type=document.getElementById('recType').value;
+  if(!d||!a||!day||day<1||day>31)return;
+  await db.collection('users').doc(currentUser.uid).collection('recurring').add({description:d,amount:a,day,category:categ(d,type),type,store:detectStore(d),lastRun:''});
+  document.getElementById('recDesc').value='';document.getElementById('recAmt').value='';
+}
+async function removeRecurring(id){
+  await db.collection('users').doc(currentUser.uid).collection('recurring').doc(id).delete();
+}
+async function checkRecurring(){
+  const today=new Date();const day=today.getDate();const mk=today.toISOString().slice(0,7);
+  for(const r of recurring){
+    if(r.day===day&&r.lastRun!==mk){
+      const entry={amount:r.amount,category:r.category,description:r.description,type:r.type||'expense',store:r.store||'',date:today.toISOString()};
+      await addEntry(entry);
+      await addMsg({role:'user',text:`🔄 Auto: ${r.description} ${fmtRp(r.amount)}`});
+      await addMsg({role:'bot',parsed:entry});
+      await db.collection('users').doc(currentUser.uid).collection('recurring').doc(r.id).update({lastRun:mk});
+    }
+  }
+}
+function renderRecurring(){
+  let h=`<div class="rec-panel"><div class="rec-title">🔄 Tagihan & Pengeluaran Rutin</div><p style="font-size:12px;color:var(--text2);margin-bottom:12px">Otomatis dicatat tiap bulan pada tanggal tertentu.</p>`;
+  if(recurring.length===0)h+=`<p style="font-size:13px;color:var(--text2);text-align:center;padding:16px">Belum ada tagihan rutin</p>`;
+  else recurring.forEach(r=>{const isIn=r.type==='income';
+    h+=`<div class="rec-item"><div style="font-size:22px">${(r.category||'📦').split(' ')[0]}</div><div class="rec-info"><div class="rec-desc">${esc(r.description)} <span class="recurring-badge">Tgl ${r.day}</span></div><div class="rec-meta">${r.category||''}${r.store?' · 🏪 '+r.store:''} · ${isIn?'Pemasukan':'Pengeluaran'}</div></div><div class="rec-amt" style="color:${isIn?'var(--green)':'var(--red)'}">${isIn?'+':'−'}${fmtRp(r.amount)}</div><button class="del-btn" onclick="removeRecurring('${r.id}')">×</button></div>`;});
+  h+=`<div class="rec-add"><input id="recDesc" placeholder="Nama (WiFi, Gaji...)"><input id="recAmt" placeholder="Jumlah (350rb)"><select id="recDay">${Array.from({length:31},(_,i)=>`<option value="${i+1}">Tgl ${i+1}</option>`).join('')}</select><select id="recType"><option value="expense">Keluar</option><option value="income">Masuk</option></select><button onclick="addRecurringItem()">+ Tambah</button></div></div>`;
+  document.getElementById('recurringView').innerHTML=h;
+}
+
+// ═══════════════════════════════════════════════
 // SETTINGS
 // ═══════════════════════════════════════════════
 function openSettings(){document.getElementById('settingsScreen').classList.remove('hidden');document.getElementById('setGemini').value=GEMINI_KEY;}
@@ -289,9 +351,9 @@ function saveSettings(){GEMINI_KEY=document.getElementById('setGemini').value.tr
 // UI
 // ═══════════════════════════════════════════════
 let currentTab='chat',recapPeriod='daily',filterFrom='',filterTo='';
-function switchTab(tab,btn){currentTab=tab;document.querySelectorAll('.tab-btn').forEach(b=>b.classList.remove('active'));btn.classList.add('active');['chatView','recapView','chartView'].forEach(v=>document.getElementById(v).style.display='none');document.getElementById(tab+'View').style.display='';updateUI();}
+function switchTab(tab,btn){currentTab=tab;document.querySelectorAll('.tab-btn').forEach(b=>b.classList.remove('active'));btn.classList.add('active');['chatView','recapView','chartView','recurringView'].forEach(v=>document.getElementById(v).style.display='none');document.getElementById(tab+'View').style.display='';updateUI();}
 function getBal(list){let i=0,e=0;list.forEach(x=>{if(x.type==='income')i+=x.amount;else e+=x.amount});return{inc:i,exp:e,bal:i-e};}
-function updateUI(){const{bal}=getBal(entries);const el=document.getElementById('balAmt');el.textContent=(bal>=0?'+':'−')+fmtRp(Math.abs(bal));el.className='amount '+(bal>=0?'pos':'neg');renderChat();renderRecap();renderChart();}
+function updateUI(){const{bal}=getBal(entries);const el=document.getElementById('balAmt');el.textContent=(bal>=0?'+':'−')+fmtRp(Math.abs(bal));el.className='amount '+(bal>=0?'pos':'neg');renderChat();renderRecap();renderChart();renderRecurring();}
 
 function renderChat(){
   const c=document.getElementById('chatView');
