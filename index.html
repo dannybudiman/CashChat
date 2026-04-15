@@ -143,7 +143,7 @@ body{font-family:'DM Sans',-apple-system,sans-serif;background:var(--bg);color:v
     <button class="s-btn" style="background:var(--accent);color:#fff" onclick="saveSettings()">💾 Simpan</button>
     <button class="s-btn" style="background:var(--surface2);color:var(--text2)" onclick="closeSettings()">← Kembali</button>
   </div>
-  <div id="mainApp" style="display:none">
+  <div id="mainApp" style="display:none;flex-direction:column;flex:1;height:100dvh">
     <div class="header">
       <div class="header-top">
         <div><h1>💸 CashChat</h1><div class="user-info" id="userName"></div></div>
@@ -221,8 +221,6 @@ auth.onAuthStateChanged(user=>{
     currentUser=user;
     document.getElementById('authScreen').style.display='none';
     document.getElementById('mainApp').style.display='flex';
-    document.getElementById('mainApp').style.flexDirection='column';
-    document.getElementById('mainApp').style.flex='1';
     document.getElementById('userName').textContent=user.displayName||user.email;
     startSync();
   }else{
